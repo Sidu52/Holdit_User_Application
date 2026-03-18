@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,105 +7,179 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Dimensions,
+  NativeSyntheticEvent,
+  TextInputKeyPressEventData,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons"; // Built-in with Expo
+import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { THEME } from "@/constants/theme";
 import { useResendOtp, useVerifyOtp } from "@/features/auth/auth.queries";
 import { showError, showSuccess } from "@/lib/toast";
 import { tokenService } from "@/services/token";
+
+const OTP_LENGTH = 4;
+const RESEND_TIMER_SECONDS = 30;
+
 const OTPVerificationScreen = () => {
   const router = useRouter();
   const { mutate: reSendOtp, isPending } = useResendOtp();
   const { mutate: verifyOtp, isPending: isVerifying } = useVerifyOtp();
   const { mobile } = useLocalSearchParams<{ mobile: string }>();
-  const [otp, setOtp] = useState<string[]>(["", "", "", ""]);
-  const [timer, setTimer] = useState(30);
+  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
+  const [timer, setTimer] = useState(RESEND_TIMER_SECONDS);
+
+  useEffect(() => {
+    if (!mobile || mobile.trim().length === 0) {
+      showError("Invalid session. Please enter your mobile number again.");
+      router.replace("/login");
+    }
+  }, [mobile, router]);
 
   // Refs for auto-focusing next input
-  const inputs = useRef<TextInput[]>([]);
+  const inputs = useRef<(TextInput | null)[]>([]);
 
-  // Timer logic
   useEffect(() => {
+    if (timer <= 0) return;
+
     const interval = setInterval(() => {
-      setTimer((prev) => (prev > 0 ? prev - 1 : 0));
+      setTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
+
     return () => clearInterval(interval);
-  }, []);
+  }, [timer]);
 
-  const handleChange = (text: string, index: number) => {
-    const newOtp = [...otp];
-    newOtp[index] = text;
-    setOtp(newOtp);
+  const handleChange = useCallback(
+    (text: string, index: number) => {
+      const sanitized = text.replace(/[^0-9]/g, "");
+      if (sanitized.length > 1) {
+        const pastedDigits = sanitized.slice(0, OTP_LENGTH).split("");
+        const newOtp = [...otp];
+        pastedDigits.forEach((digit, i) => {
+          if (index + i < OTP_LENGTH) {
+            newOtp[index + i] = digit;
+          }
+        });
+        setOtp(newOtp);
+        const nextIndex = Math.min(index + pastedDigits.length, OTP_LENGTH - 1);
+        inputs.current[nextIndex]?.focus();
+        return;
+      }
 
-    // Move to next input if text is entered
-    if (text && index < 3) {
-      inputs.current[index + 1].focus();
+      const newOtp = [...otp];
+      newOtp[index] = sanitized;
+      setOtp(newOtp);
+      if (sanitized && index < OTP_LENGTH - 1) {
+        inputs.current[index + 1]?.focus();
+      }
+    },
+    [otp],
+  );
+  const handleKeyPress = useCallback(
+    (e: NativeSyntheticEvent<TextInputKeyPressEventData>, index: number) => {
+      if (e.nativeEvent.key === "Backspace" && !otp[index] && index > 0) {
+        const newOtp = [...otp];
+        newOtp[index - 1] = "";
+        setOtp(newOtp);
+        inputs.current[index - 1]?.focus();
+      }
+    },
+    [otp],
+  );
+
+  const handleResendOtp = useCallback(() => {
+    if (isPending || timer > 0) {
+      return;
     }
-  };
 
-  const handleKeyPress = (e: any, index: number) => {
-    // Move to previous input on backspace if current is empty
-    if (e.nativeEvent.key === "Backspace" && !otp[index] && index > 0) {
-      inputs.current[index - 1].focus();
-    }
-  };
-
-  const handleResendOtp = () => {
-    if (isPending) {
+    if (!mobile) {
+      showError("Mobile number is missing.");
       return;
     }
 
     reSendOtp(mobile, {
-      onSuccess: (res) => {
-        showSuccess("OTP Sent successfully");
-        setOtp(["", "", "", ""]);
-        setTimer(30); // timer starts from 30 seconds
+      onSuccess: (_res) => {
+        showSuccess("OTP sent successfully");
+        setOtp(Array(OTP_LENGTH).fill(""));
+        setTimer(RESEND_TIMER_SECONDS);
+        inputs.current[0]?.focus();
       },
       onError: (err) => {
-        showError(err.message);
-        console.log("OTP Error:", err);
+        showError("Failed to resend OTP. Please try again.");
+        if (__DEV__) {
+          console.error("Resend OTP Error:", err);
+        }
       },
     });
-  };
+  }, [isPending, timer, mobile, reSendOtp]);
 
-  const handleVerify = () => {
+  const handleVerify = useCallback(() => {
     if (!mobile || isVerifying) return;
+
     const code = otp.join("");
-    if (code.length !== 4) {
-      showError("Please enter valid 4 digit OTP");
+    if (code.length !== OTP_LENGTH || !/^[0-9]+$/.test(code)) {
+      showError(`Please enter a valid ${OTP_LENGTH}-digit OTP`);
       return;
     }
 
     verifyOtp(
-      { phone: mobile, code },
+      { phone: mobile, otp: code },
       {
         onSuccess: async (res) => {
-          showSuccess("OTP verified successfully");
-          console.log("res", res);
-          // save tokens
-          await tokenService.setTokens(res.accessToken, res.refreshToken);
-          router.replace("/(tabs)");
+          console.log("RES", res);
+          if (!res?.accessToken || !res?.refreshToken) {
+            showError("Authentication failed. Invalid server response.");
+            if (__DEV__) {
+              console.error("Missing tokens in verify response:", res);
+            }
+            return;
+          }
+
+          try {
+            await tokenService.setTokens(res.accessToken, res.refreshToken);
+            showSuccess("OTP verified successfully");
+            router.replace("/(tabs)");
+          } catch (storageErr) {
+            showError("Failed to save session. Please try again.");
+            if (__DEV__) {
+              console.error("Token storage error:", storageErr);
+            }
+          }
         },
-
         onError: (err) => {
-          const message =
-            err.response?.data?.message ||
-            err.message ||
-            "OTP verification failed";
+          const status = err?.response?.status;
 
-          showError(message);
-          console.log("OTP Error:", {
-            message,
-            status: err.response?.status,
-            data: err.response?.data,
-          });
+          let userMessage = "OTP verification failed. Please try again.";
+          if (status === 400) {
+            userMessage = "Invalid OTP. Please check and try again.";
+          } else if (status === 410 || status === 408) {
+            userMessage = "OTP has expired. Please request a new one.";
+          } else if (status === 429) {
+            userMessage = "Too many attempts. Please wait and try again.";
+          }
+
+          showError(userMessage);
+
+          if (__DEV__) {
+            console.error("OTP Verification Error:", {
+              message: err?.message,
+              status,
+              data: err?.response?.data,
+            });
+          }
         },
       },
     );
-  };
+  }, [mobile, isVerifying, otp, verifyOtp, router]);
+  const maskedMobile = mobile
+    ? mobile.slice(0, 2) + "****" + mobile.slice(-2)
+    : "";
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -124,7 +198,7 @@ const OTPVerificationScreen = () => {
         </View>
 
         <View style={styles.content}>
-          {/* Hero Illustration Placeholder */}
+          {/* Hero Illustration */}
           <View style={styles.illustrationContainer}>
             <View style={styles.iconCircle}>
               <Ionicons
@@ -139,7 +213,8 @@ const OTPVerificationScreen = () => {
           <Text style={styles.title}>Verification Code</Text>
           <Text style={styles.subtitle}>
             We have sent the code verification to your mobile number{" "}
-            <Text style={styles.phoneNumber}>{mobile}</Text>
+            {/* FIX 15: Show masked number */}
+            <Text style={styles.phoneNumber}>{maskedMobile}</Text>
           </Text>
 
           {/* OTP Input Fields */}
@@ -148,18 +223,19 @@ const OTPVerificationScreen = () => {
               <TextInput
                 key={index}
                 ref={(ref) => {
-                  if (ref) inputs.current[index] = ref;
+                  inputs.current[index] = ref;
                 }}
-                style={[
-                  styles.otpInput,
-                  otp[index] ? styles.otpInputActive : null,
-                ]}
+                style={[styles.otpInput, digit ? styles.otpInputActive : null]}
                 keyboardType="number-pad"
                 maxLength={1}
                 onChangeText={(text) => handleChange(text, index)}
                 onKeyPress={(e) => handleKeyPress(e, index)}
                 value={digit}
                 selectionColor={THEME.PRIMARY}
+                secureTextEntry={false}
+                autoComplete="one-time-code"
+                textContentType="oneTimeCode"
+                accessibilityLabel={`OTP digit ${index + 1} of ${OTP_LENGTH}`}
               />
             ))}
           </View>
@@ -169,8 +245,11 @@ const OTPVerificationScreen = () => {
             <TouchableOpacity
               onPress={handleResendOtp}
               style={styles.resendButton}
+              disabled={isPending}
             >
-              <Text style={styles.resendText}>Resend Code</Text>
+              <Text style={styles.resendText}>
+                {isPending ? "Sending..." : "Resend Code"}
+              </Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.timerContainer}>
@@ -181,32 +260,39 @@ const OTPVerificationScreen = () => {
             </View>
           )}
         </View>
+
         {/* Action Button */}
         <TouchableOpacity
           style={[
             styles.verifyButton,
-            otp.join("").length < 4 && styles.buttonDisabled,
+            (otp.join("").length < OTP_LENGTH || isVerifying) &&
+              styles.buttonDisabled,
           ]}
           onPress={handleVerify}
-          disabled={otp.join("").length < 4}
+          disabled={otp.join("").length < OTP_LENGTH || isVerifying}
         >
           <Text style={styles.verifyButtonText}>
             {isVerifying ? "Verifying..." : "Verify Account"}
           </Text>
           {!isVerifying && (
-            <Ionicons name="arrow-forward" size={20} color={THEME.TEXT_MAIN} />
+            <Ionicons
+              name="arrow-forward"
+              size={20}
+              color={THEME.TEXT_PRIMARY}
+            />
           )}
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
+
 export default OTPVerificationScreen;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: THEME.LIGHT_BACKGROUND,
+    backgroundColor: THEME.BACKGROUND_LIGHT,
   },
   header: {
     paddingHorizontal: 16,
@@ -245,7 +331,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: THEME.TEXT_SUB,
+    color: THEME.TEXT_DARK_SECONDARY,
     textAlign: "center",
     lineHeight: 24,
     marginBottom: 32,
@@ -265,7 +351,7 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: THEME.BORDER,
+    borderColor: THEME.BORDER_LIGHT,
     backgroundColor: "#FFFFFF",
     textAlign: "center",
     fontSize: 24,
@@ -294,7 +380,7 @@ const styles = StyleSheet.create({
   },
   timerText: {
     fontSize: 14,
-    color: THEME.TEXT_SUB,
+    color: THEME.TEXT_DARK_SECONDARY,
   },
   timerCount: {
     fontSize: 14,
@@ -324,7 +410,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   verifyButtonText: {
-    color: THEME.TEXT_MAIN,
+    color: THEME.TEXT_PRIMARY,
     fontSize: 18,
     fontWeight: "bold",
   },

@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     paddingBottom: 5,
   },
   textChar: {
-    color: THEME.TEXT_MAIN,
+    color: THEME.TEXT_PRIMARY,
     fontFamily: "Audiowide_400Regular",
     fontSize: 48,
     fontWeight: "900",
@@ -181,10 +181,10 @@ const styles = StyleSheet.create({
   accentLine: {
     height: 4,
     width: width * 0.4,
-    backgroundColor: THEME.ACCENT,
+    backgroundColor: THEME.PRIMARY_LIGHTER,
     marginTop: 10,
     borderRadius: 2,
-    shadowColor: THEME.ACCENT,
+    shadowColor: THEME.PRIMARY_LIGHTER,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 10,

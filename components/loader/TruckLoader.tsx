@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: "100%",
-    backgroundColor: THEME.LIGHT_BACKGROUND,
+    backgroundColor: THEME.BACKGROUND_LIGHT,
   },
   loaderContainer: {
     flex: 1,

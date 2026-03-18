@@ -22,8 +22,8 @@ interface BackgroundGradientProps {
 const BackgroundGradient = ({
   children,
   primaryColor = THEME.PRIMARY,
-  secondaryColor = THEME.SECOUNDARY,
-  bottomColor = THEME.LIGHT_BACKGROUND,
+  secondaryColor = THEME.SECONDARY,
+  bottomColor = THEME.BACKGROUND_LIGHT,
 }: BackgroundGradientProps) => {
   return (
     <View style={styles.container}>

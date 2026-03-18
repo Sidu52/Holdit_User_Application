@@ -6,23 +6,23 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { THEME } from "@/constants/theme";
 import { useRouter } from "expo-router";
-import { useUser } from "@/features/user/user.queries";
+import { useProfile } from "@/features/user/user.queries";
 import { getInitials } from "@/utils/helper";
 
 /* ---------------- HELPERS ---------------- */
 
-
 const formatMemberSince = (date?: string) => {
-  if (!date) return "";
+  if (!date) return "MEMBER SINCE 2024";
   const d = new Date(date);
-  return `Member Since ${d.toLocaleString("en-US", {
+  return `MEMBER SINCE ${d.toLocaleString("en-US", {
     month: "long",
     year: "numeric",
-  })}`;
+  })}`.toUpperCase();
 };
 
 /* ---------------- UI COMPONENTS ---------------- */
@@ -32,19 +32,31 @@ type MenuItemProps = {
   label: string;
   value?: string;
   onPress?: () => void;
+  isLast?: boolean;
 };
 
-const MenuItem = ({ icon, label, value, onPress }: MenuItemProps) => (
-  <TouchableOpacity style={styles.menuItem} onPress={onPress}>
-    <View style={styles.menuIcon}>
-      <Ionicons name={icon} size={20} color={THEME.ACCENT} />
+const MenuItem = ({ icon, label, value, onPress, isLast }: MenuItemProps) => (
+  <TouchableOpacity
+    style={[styles.menuItem, isLast && { borderBottomWidth: 0 }]}
+    onPress={onPress}
+  >
+    <View style={styles.menuIconContainer}>
+      <Ionicons name={icon} size={18} color={THEME.PRIMARY_LIGHTER} />
     </View>
 
     <Text style={styles.menuLabel}>{label}</Text>
 
-    {value && <Text style={styles.menuValue}>{value}</Text>}
+    {value && (
+      <View style={styles.valueBadge}>
+        <Text style={styles.menuValue}>{value}</Text>
+      </View>
+    )}
 
-    <Ionicons name="chevron-forward" size={18} color={THEME.TEXT_DISABLED} />
+    <Ionicons
+      name="chevron-forward"
+      size={16}
+      color={THEME.BUTTON_TEXT_DISABLED}
+    />
   </TouchableOpacity>
 );
 
@@ -55,7 +67,7 @@ const Section = ({
   title: string;
   children: React.ReactNode;
 }) => (
-  <View style={{ marginBottom: 24 }}>
+  <View style={styles.section}>
     <Text style={styles.sectionTitle}>{title}</Text>
     <View style={styles.card}>{children}</View>
   </View>
@@ -65,7 +77,7 @@ const Section = ({
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { data: user, isLoading, isError } = useUser();
+  const { data: user, isLoading, isError } = useProfile();
 
   if (isLoading) {
     return (
@@ -89,29 +101,30 @@ export default function ProfileScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      contentContainerStyle={{ paddingBottom: 60 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* ---------- HEADER ---------- */}
-      <View style={styles.header}>
-        {/* Back Button */}
+      <StatusBar barStyle="light-content" />
+
+      {/* ---------- DARK HEADER CARD ---------- */}
+      <View style={styles.headerCard}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={22} color={THEME.TEXT_MAIN} />
+          <Ionicons name="chevron-back" size={24} color="#FFF" />
         </TouchableOpacity>
+
         <View style={styles.avatarWrapper}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
-
           {user.is_active && (
             <View style={styles.verifiedBadge}>
               <Ionicons
                 name="checkmark-circle"
-                size={18}
-                color={THEME.PRIMARY}
+                size={16}
+                color={THEME.PRIMARY_LIGHTER}
               />
             </View>
           )}
@@ -121,54 +134,47 @@ export default function ProfileScreen() {
         <Text style={styles.subtitle}>{formatMemberSince(user.createdAt)}</Text>
       </View>
 
-      {/* ---------- ACCOUNT ---------- */}
-      <Section title="Account Information">
-        <MenuItem
-          icon="person-outline"
-          label="Personal Information"
-          value={user.email}
-        />
-        <MenuItem
-          icon="location-outline"
-          label="My Address"
-          value={user.address}
-        />
-        <MenuItem icon="call-outline" label="Phone" value={user.phone} />
-      </Section>
+      <View style={styles.contentPadding}>
+        {/* ---------- ACCOUNT ---------- */}
+        <Section title="ACCOUNT INFORMATION">
+          <MenuItem icon="person" label="Personal Information" />
+          <MenuItem
+            icon="location"
+            label="My Addresses"
+            value={user.address ? "Saved" : undefined}
+            isLast
+          />
+        </Section>
 
-      {/* ---------- ACTIVITY ---------- */}
-      <Section title="Activity">
-        <MenuItem icon="time-outline" label="Booking History" />
-        <MenuItem icon="briefcase-outline" label="My Luggage" />
-      </Section>
+        {/* ---------- ACTIVITY ---------- */}
+        <Section title="ACTIVITY">
+          <MenuItem icon="time" label="Booking History" />
+          <MenuItem icon="briefcase" label="My Luggage" isLast />
+        </Section>
 
-      {/* ---------- SETTINGS ---------- */}
-      <Section title="Settings">
-        <MenuItem icon="notifications-outline" label="Notifications" />
-        <MenuItem icon="moon-outline" label="App Theme" value="Light" />
-        <MenuItem
-          icon="language-outline"
-          label="Language"
-          value="English (US)"
-        />
-      </Section>
+        {/* ---------- SETTINGS ---------- */}
+        <Section title="SETTINGS">
+          <MenuItem icon="notifications" label="Notifications" />
+          <MenuItem icon="moon" label="App Theme" value="Light" />
+          <MenuItem icon="globe" label="Language" value="English (US)" isLast />
+        </Section>
 
-      {/* ---------- SUPPORT ---------- */}
-      <Section title="Support & Legal">
-        <MenuItem icon="help-circle-outline" label="Help Center" />
-        <MenuItem icon="document-text-outline" label="Terms & Conditions" />
-        <MenuItem icon="shield-checkmark-outline" label="Privacy Policy" />
-      </Section>
+        {/* ---------- SUPPORT ---------- */}
+        <Section title="SUPPORT & LEGAL">
+          <MenuItem icon="help-circle" label="Help Center" />
+          <MenuItem icon="document-text" label="Privacy Policy" isLast />
+        </Section>
 
-      {/* ---------- LOGOUT ---------- */}
-      <TouchableOpacity style={styles.logoutBtn}>
-        <Ionicons name="log-out-outline" size={20} color={THEME.ERROR} />
-        <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
+        {/* ---------- LOGOUT ---------- */}
+        <TouchableOpacity style={styles.logoutBtn}>
+          <Ionicons name="log-out-outline" size={20} color={THEME.ERROR} />
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
 
-      <Text style={styles.footerText}>
-        Holdit v2.4.0 • Built for your journey
-      </Text>
+        <Text style={styles.footerText}>
+          Holdit v2.4.0 • Built for your journey
+        </Text>
+      </View>
     </ScrollView>
   );
 }
@@ -178,152 +184,142 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: THEME.LIGHT_BACKGROUND,
+    backgroundColor: THEME.BACKGROUND_LIGHT,
   },
-
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
+  headerCard: {
+    backgroundColor: THEME.PRIMARY,
+    paddingTop: 60,
+    paddingBottom: 40,
+    alignItems: "center",
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
   backButton: {
     position: "absolute",
-    top: 48,
-    left: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
+    top: 50,
+    left: 20,
   },
-
-  header: {
-    backgroundColor: THEME.PRIMARY,
-    paddingTop: 48,
-    paddingBottom: 32,
-    alignItems: "center",
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-  },
-
   avatarWrapper: {
     position: "relative",
-    marginBottom: 12,
+    marginBottom: 16,
   },
-
   avatar: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
-    backgroundColor: THEME.PRIMARY_LIGHT,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#DCEEFF",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 4,
-    borderColor: "#fff",
+    borderColor: "#EBAE2B", // Yellow ring from the image
   },
-
   avatarText: {
-    color: THEME.TEXT_MAIN,
-    fontSize: 28,
-    fontWeight: "800",
+    color: "#1A2B48",
+    fontSize: 26,
+    fontWeight: "bold",
   },
-
   verifiedBadge: {
     position: "absolute",
-    bottom: 6,
-    right: 6,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 2,
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#FFF",
+    borderRadius: 10,
   },
-
   name: {
     fontSize: 22,
-    fontWeight: "800",
-    color: THEME.TEXT_MAIN,
+    fontWeight: "700",
+    color: "#FFF",
   },
-
   subtitle: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.7)",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-  },
-
-  sectionTitle: {
+    marginTop: 6,
     fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-    color: THEME.TEXT_SUB,
-    marginLeft: 16,
+    fontWeight: "600",
+    color: "#A0ABBB",
+    letterSpacing: 0.5,
+  },
+  contentPadding: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#94A3B8",
     marginBottom: 8,
-    textTransform: "uppercase",
+    marginLeft: 4,
   },
-
   card: {
-    backgroundColor: THEME.CARD_BG,
-    borderRadius: 20,
-    marginHorizontal: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: THEME.BORDER,
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
-
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
     paddingVertical: 14,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: THEME.BORDER,
+    borderBottomColor: "#F1F5F9",
   },
-
-  menuIcon: {
-    backgroundColor: THEME.INPUT_BG,
-    padding: 8,
-    borderRadius: 12,
+  menuIconContainer: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
-
   menuLabel: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
-    color: THEME.TEXT_MAIN,
+    color: "#334155",
   },
-
+  valueBadge: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginRight: 8,
+  },
   menuValue: {
     fontSize: 12,
-    fontWeight: "700",
-    color: THEME.TEXT_DISABLED,
-    marginRight: 6,
+    fontWeight: "600",
+    color: "#64748B",
   },
-
   logoutBtn: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    backgroundColor: "#fdecec",
-    borderRadius: 20,
+    marginTop: 10,
+    backgroundColor: "#FFF1F1",
+    borderRadius: 12,
     paddingVertical: 14,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
+    borderWidth: 1,
+    borderColor: "#FEE2E2",
   },
-
   logoutText: {
-    fontWeight: "800",
+    fontWeight: "700",
     color: THEME.ERROR,
-    fontSize: 14,
+    fontSize: 15,
   },
-
   footerText: {
     textAlign: "center",
-    fontSize: 10,
-    color: THEME.TEXT_DISABLED,
-    marginTop: 16,
+    fontSize: 11,
+    color: "#94A3B8",
+    marginTop: 20,
   },
 });

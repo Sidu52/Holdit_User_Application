@@ -2,12 +2,30 @@ import { Tabs } from "expo-router";
 import React from "react";
 import { View } from "react-native";
 import SignupBottomSheet from "@/components/bottomSheet/signupBottomSheet";
-import { useUser } from "@/features/user/user.queries";
+import { useProfile } from "@/features/user/user.queries";
 import TruckLoader from "@/components/loader/TruckLoader";
 import { CustomTabBar } from "@/components/navigation/CustomTabBar";
+import { useRouter } from "expo-router";
+import { showError } from "@/lib/toast";
 
 export default function TabsLayout() {
-  const { data: user, isLoading } = useUser();
+  const router = useRouter();
+  const { data: user, isLoading, isError, error } = useProfile();
+
+  // An unauthenticated user should be redirected back to login.
+  if (isError) {
+    const status = (error as any)?.response?.status;
+    if (status === 401 || status === 403) {
+      router.replace("/login");
+      return null;
+    }
+
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <TruckLoader />
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -17,18 +35,28 @@ export default function TabsLayout() {
     );
   }
 
+  // always showing the signup bottom sheet (which may not be intended).
+  if (!user) {
+    if (__DEV__) {
+      console.warn("Profile loaded but user data is null/undefined");
+    }
+    router.replace("/login");
+    return null;
+  }
+
   return (
     <View style={{ flex: 1 }}>
       <Tabs
-        screenOptions={{ headerShown: false }}
+        screenOptions={{
+          headerShown: false,
+        }}
         tabBar={(props) => <CustomTabBar {...props} />}
       >
         <Tabs.Screen name="index" options={{ title: "Home" }} />
-
-        <Tabs.Screen name="explore" options={{ title: "Explore" }} />
+        <Tabs.Screen name="schedule" options={{ title: "Schedule" }} />
+        <Tabs.Screen name="myLuggage" options={{ title: "My Luggage" }} />
       </Tabs>
-
-      {!user?.isSignUp && <SignupBottomSheet />}
+      {user.isSignUp === false && <SignupBottomSheet />}
     </View>
   );
 }

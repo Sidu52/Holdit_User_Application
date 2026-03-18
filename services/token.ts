@@ -1,32 +1,57 @@
-// import * as SecureStore from "expo-secure-store";
+// services/token.ts
 
-// export async function setToken(tokenkey:string, token: string) {
-//   await SecureStore.setItemAsync(tokenkey, token);
-// }
-
-// export async function getToken(tokenkey:string) {
-//   return await SecureStore.getItemAsync(tokenkey);
-// }
-
-// export async function deleteToken(tokenkey:string) {
-//   await SecureStore.deleteItemAsync(tokenkey);
-// }
 import * as SecureStore from "expo-secure-store";
 
-const ACCESS_TOKEN = "accessToken";
-const REFRESH_TOKEN = "refreshToken";
+const ACCESS_TOKEN_KEY = "access_token";
+const REFRESH_TOKEN_KEY = "refresh_token";
 
 export const tokenService = {
-  getAccessToken: () => SecureStore.getItemAsync(ACCESS_TOKEN),
-  getRefreshToken: () => SecureStore.getItemAsync(REFRESH_TOKEN),
-
-  setTokens: async (access: string, refresh: string) => {
-    await SecureStore.setItemAsync(ACCESS_TOKEN, access);
-    await SecureStore.setItemAsync(REFRESH_TOKEN, refresh);
+  // GET TOKENS
+  getAccessToken: async (): Promise<string | null> => {
+    try {
+      return await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+    } catch {
+      return null;
+    }
   },
 
-  clear: async () => {
-    await SecureStore.deleteItemAsync(ACCESS_TOKEN);
-    await SecureStore.deleteItemAsync(REFRESH_TOKEN);
+  getRefreshToken: async (): Promise<string | null> => {
+    try {
+      return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  },
+
+  // SET TOKENS
+  setTokens: async (
+    accessToken: string,
+    refreshToken: string,
+  ): Promise<void> => {
+    await Promise.all([
+      SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken),
+      SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken),
+    ]);
+  },
+
+  setAccessToken: async (token: string): Promise<void> => {
+    await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token);
+  },
+
+  // CLEAR TOKENS
+  clear: async (): Promise<void> => {
+    await Promise.all([
+      SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
+      SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+    ]);
+  },
+
+  // CHECK IF TOKENS EXIST
+  hasTokens: async (): Promise<boolean> => {
+    const [access, refresh] = await Promise.all([
+      SecureStore.getItemAsync(ACCESS_TOKEN_KEY),
+      SecureStore.getItemAsync(REFRESH_TOKEN_KEY),
+    ]);
+    return !!(access || refresh);
   },
 };

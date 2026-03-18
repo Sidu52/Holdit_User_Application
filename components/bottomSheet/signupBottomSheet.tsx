@@ -79,8 +79,8 @@ export default function SignupBottomSheet() {
       enablePanDownToClose={false}
       enableContentPanningGesture={false}
       backdropComponent={renderBackdrop}
-      handleIndicatorStyle={{ backgroundColor: THEME.BORDER, width: 50 }}
-      backgroundStyle={{ backgroundColor: THEME.LIGHT_BACKGROUND }}
+      handleIndicatorStyle={{ backgroundColor: THEME.BORDER_LIGHT, width: 50 }}
+      backgroundStyle={{ backgroundColor: THEME.BACKGROUND_LIGHT }}
     >
       <BottomSheetScrollView
         contentContainerStyle={styles.container}
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 15,
-    color: THEME.TEXT_SUB,
+    color: THEME.TEXT_DARK_SECONDARY,
     textAlign: "center",
     marginTop: 8,
     lineHeight: 22,
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     height: 52,
     borderWidth: 1,
-    borderColor: THEME.BORDER,
+    borderColor: THEME.BORDER_LIGHT,
   },
   // ... existing styles ...
   genderToggleContainer: {
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F9FA",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: THEME.BORDER,
+    borderColor: THEME.BORDER_LIGHT,
     height: 50,
     padding: 4,
   },
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
   genderOptionText: {
     fontSize: 14,
     fontWeight: "600",
-    color: THEME.TEXT_SUB,
+    color: THEME.TEXT_DARK_SECONDARY,
   },
   genderOptionTextActive: {
     color: "#FFF",
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F9FA",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: THEME.BORDER,
+    borderColor: THEME.BORDER_LIGHT,
     height: 50,
     paddingHorizontal: 15,
   },
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   },
   readOnlyInput: {
     backgroundColor: "#F1F5F9",
-    borderColor: THEME.BORDER,
+    borderColor: THEME.BORDER_LIGHT,
   },
   checkIcon: {
     marginRight: 15,
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   },
   privacyNote: {
     fontSize: 12,
-    color: THEME.TEXT_DISABLED,
+    color: THEME.BUTTON_TEXT_DISABLED,
     textAlign: "center",
     marginTop: 20,
     lineHeight: 18,

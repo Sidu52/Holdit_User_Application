@@ -20,23 +20,58 @@ import { showSuccess, showError } from "@/lib/toast";
 
 const { width } = Dimensions.get("window");
 
+const MOBILE_MIN_LENGTH = 10;
+const MOBILE_MAX_LENGTH = 15;
+
 export default function LoginScreen() {
   const router = useRouter();
   const [mobile, setMobile] = useState<string>("");
   const { mutate: sendOtp, isPending } = useSendOtp();
 
-  const handleLogin = async () => {
-    sendOtp(mobile, {
-      onSuccess: (res) => {
-        showSuccess("OTP verified successfully");
+  const handleMobileChange = (text: string) => {
+    const sanitized = text.replace(/[^0-9]/g, "");
+    if (sanitized.length <= MOBILE_MAX_LENGTH) {
+      setMobile(sanitized);
+    }
+  };
+
+  const isValidMobile = (number: string): boolean => {
+    return (
+      number.length >= MOBILE_MIN_LENGTH &&
+      number.length <= MOBILE_MAX_LENGTH &&
+      /^[0-9]+$/.test(number)
+    );
+  };
+
+  const handleLogin = () => {
+    const trimmedMobile = mobile.trim();
+    if (isPending) {
+      return;
+    }
+    if (!trimmedMobile) {
+      showError("Please enter your mobile number");
+      return;
+    }
+    if (!isValidMobile(trimmedMobile)) {
+      showError(
+        `Please enter a valid mobile number (${MOBILE_MIN_LENGTH}-${MOBILE_MAX_LENGTH} digits)`,
+      );
+      return;
+    }
+
+    sendOtp(trimmedMobile, {
+      onSuccess: (_res) => {
+        showSuccess("OTP sent successfully");
         router.push({
           pathname: "/otp_verification",
-          params: { mobile },
+          params: { mobile: trimmedMobile },
         });
       },
       onError: (err) => {
-        showError(err.message);
-        console.log("OTP Error:", err);
+        showError("Failed to send OTP. Please try again.");
+        if (__DEV__) {
+          console.error("OTP Error:", err);
+        }
       },
     });
   };
@@ -99,7 +134,7 @@ export default function LoginScreen() {
             keyboardType="phone-pad"
             placeholder="Enter your mobile number"
             value={mobile}
-            onChangeText={setMobile}
+            onChangeText={handleMobileChange}
             style={styles.input}
           />
         </View>
@@ -128,7 +163,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: THEME.LIGHT_BACKGROUND,
+    backgroundColor: THEME.BACKGROUND_LIGHT,
     fontFamily: "Lexend_400Regular",
   },
 
@@ -183,7 +218,7 @@ const styles = StyleSheet.create({
   },
 
   slideTitle: {
-    color: THEME.TEXT_MAIN,
+    color: THEME.TEXT_PRIMARY,
     fontSize: 28,
     fontWeight: "800",
   },
@@ -206,7 +241,7 @@ const styles = StyleSheet.create({
 
   description: {
     fontSize: 16,
-    color: THEME.TEXT_SUB,
+    color: THEME.TEXT_DARK_SECONDARY,
     lineHeight: 24,
   },
 
@@ -225,7 +260,7 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: THEME.BORDER,
+    borderColor: THEME.BORDER_LIGHT,
     paddingHorizontal: 16,
     fontSize: 18,
   },
@@ -236,7 +271,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     borderTopWidth: 1,
-    borderTopColor: THEME.BORDER,
+    borderTopColor: THEME.BORDER_LIGHT,
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
@@ -251,16 +286,16 @@ const styles = StyleSheet.create({
   terms: {
     fontSize: 12,
     textAlign: "center",
-    color: THEME.TEXT_SUB,
+    color: THEME.TEXT_DARK_SECONDARY,
     paddingHorizontal: 16,
   },
 
   link: {
-    color: THEME.TEXT_LINK,
+    color: THEME.INFO,
   },
 
   button: {
-    backgroundColor: THEME.ACCENT,
+    backgroundColor: THEME.PRIMARY_LIGHTER,
     height: 48,
     borderRadius: 12,
     alignItems: "center",
@@ -268,7 +303,7 @@ const styles = StyleSheet.create({
   },
 
   buttonText: {
-    color: THEME.TEXT_MAIN,
+    color: THEME.TEXT_PRIMARY,
     fontWeight: "700",
     fontSize: 16,
   },

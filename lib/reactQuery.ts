@@ -14,9 +14,7 @@ export const queryClient = new QueryClient({
       retry: 0,
       onError: (error: any) => {
         const message =
-          error?.response?.data?.message ||
-          error?.message ||
-          "Something went wrong";
+          error?.response?.data?.message || error?.message || "Something";
 
         showError(message);
       },

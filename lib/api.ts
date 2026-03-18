@@ -1,34 +1,73 @@
-import axios from "axios";
+import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { tokenService } from "@/services/token";
 
-/* ------------------ REFRESH STATE ------------------ */
-let isRefreshing = false;
-
-type FailedRequest = {
+// TYPES
+interface QueuedRequest {
   resolve: (token: string) => void;
-  reject: (error: any) => void;
+  reject: (error: unknown) => void;
+}
+
+interface ApiError {
+  message: string;
+  status: number;
+  data: unknown;
+}
+
+// REFRESH STATE
+let isRefreshing = false;
+let failedQueue: QueuedRequest[] = [];
+
+// Auth failure callback — set by AuthProvider
+let onAuthFailure: (() => void) | null = null;
+
+export const setAuthFailureHandler = (handler: () => void) => {
+  onAuthFailure = handler;
 };
 
-let failedQueue: FailedRequest[] = [];
-
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (
+  error: AxiosError | null,
+  token: string | null = null,
+) => {
   failedQueue.forEach(({ resolve, reject }) => {
-    if (error) reject(error);
-    else resolve(token as string);
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token as string);
+    }
   });
   failedQueue = [];
 };
 
-/* ------------------ AXIOS INSTANCE ------------------ */
+const handleAuthFailure = async () => {
+  await tokenService.clear();
+  onAuthFailure?.();
+};
+
+// AXIOS INSTANCE
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+if (!API_URL) {
+  throw new Error("EXPO_PUBLIC_API_URL is not defined");
+}
+
 export const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL,
+  baseURL: API_URL,
   timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-/* ------------------ REQUEST INTERCEPTOR ------------------ */
+// Separate instance for refresh to avoid interceptor loop
+const refreshApi = axios.create({
+  baseURL: API_URL,
+  timeout: 10000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// REQUEST INTERCEPTOR
 api.interceptors.request.use(
   async (config) => {
     const accessToken = await tokenService.getAccessToken();
@@ -42,69 +81,84 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-/* ------------------ RESPONSE INTERCEPTOR ------------------ */
+// RESPONSE INTERCEPTOR
 api.interceptors.response.use(
+  // Success
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
 
-    // If refresh token API itself fails → logout
-    if (originalRequest?.url?.includes("/auth/refresh")) {
-      await tokenService.clear();
-      return Promise.reject(error);
+  // Error
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean;
+    };
+
+    // Not a 401 — reject normally
+    if (error.response?.status !== 401) {
+      return Promise.reject(formatError(error));
     }
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        // Queue requests while refreshing
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return api(originalRequest);
-        });
-      }
+    // Already retried — give up
+    if (originalRequest._retry) {
+      await handleAuthFailure();
+      return Promise.reject(formatError(error));
+    }
 
-      originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        const refreshToken = await tokenService.getRefreshToken();
-
-        if (!refreshToken) {
-          throw new Error("Refresh token missing");
-        }
-
-        const refreshResponse = await axios.post(
-          `${process.env.EXPO_PUBLIC_API_URL}/auth/refresh`,
-          { refreshToken },
-        );
-
-        const { accessToken, refreshToken: newRefreshToken } =
-          refreshResponse.data.data;
-
-        await tokenService.setTokens(accessToken, newRefreshToken);
-
-        api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
-
-        processQueue(null, accessToken);
-
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+    // If already refreshing, queue this request
+    if (isRefreshing) {
+      return new Promise<string>((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      }).then((newToken) => {
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
-      } catch (err) {
-        processQueue(err, null);
-        await tokenService.clear();
-        return Promise.reject(err);
-      } finally {
-        isRefreshing = false;
-      }
+      });
     }
 
-    // Normal error
-    return Promise.reject({
-      message: error.response?.data?.message || error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
+    // Start refresh
+    originalRequest._retry = true;
+    isRefreshing = true;
+
+    try {
+      const refreshToken = await tokenService.getRefreshToken();
+
+      if (!refreshToken) {
+        throw new Error("No refresh token available");
+      }
+
+      // Use separate axios instance to avoid interceptor loop
+      const response = await refreshApi.post("/user/auth/refresh", {
+        refreshToken,
+      });
+
+      const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+        response.data.data;
+
+      // Store new tokens
+      await tokenService.setTokens(newAccessToken, newRefreshToken);
+
+      // Process queued requests
+      processQueue(null, newAccessToken);
+
+      // Retry original request
+      originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+      return api(originalRequest);
+    } catch (refreshError) {
+      // Refresh failed — clear everything
+      processQueue(refreshError as AxiosError, null);
+      await handleAuthFailure();
+      return Promise.reject(formatError(refreshError as AxiosError));
+    } finally {
+      isRefreshing = false;
+    }
   },
 );
+
+// Error formatter to ensure consistent error objects
+const formatError = (error: AxiosError): ApiError => {
+  const responseData = error.response?.data as { message?: string } | undefined;
+
+  return {
+    message: responseData?.message || error.message || "Something went wrong",
+    status: error.response?.status || 500,
+    data: error.response?.data || null,
+  };
+};
