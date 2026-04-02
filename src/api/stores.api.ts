@@ -84,7 +84,7 @@ export const storeApi = {
     }
 
     const res = await api.get<ApiResponse<StoreListData>>(
-      "/stores/nearby",
+      "/user/stores/nearby",
       {
         params: {
           lat,
@@ -161,7 +161,7 @@ export const storeApi = {
     }
 
     const res = await api.get<ApiResponse<StoreListData>>(
-      "/stores/search",
+      "/user/stores/search",
       { params: queryParams }
     );
 
@@ -180,7 +180,7 @@ export const storeApi = {
     }
 
     const res = await api.get<ApiResponse<StoreDetailData>>(
-      `/stores/${trimmedId}`
+      `/user/stores/${trimmedId}`
     );
 
     return res.data.data;

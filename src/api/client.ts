@@ -39,7 +39,7 @@ const handleAuthFailure = async () => {
 };
 
 // AXIOS INSTANCE
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.101:5000/api/v1";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.100:5000/api/v1";
 
 export const api = axios.create({
   baseURL: API_URL,

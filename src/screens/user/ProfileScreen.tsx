@@ -153,12 +153,21 @@ export default function ProfileScreen() {
 
         {/* ---------- ACTIVITY ---------- */}
         <Section title="ACTIVITY">
-          <MenuItem icon="time" label="Booking History" />
-          <MenuItem icon="briefcase" label="My Luggage" isLast />
+          <MenuItem
+            icon="time"
+            label="Booking History"
+            onPress={() => router.push({ pathname: "/activity", params: { tab: "History" } })}
+          />
+          <MenuItem
+            icon="briefcase"
+            label="My Luggage"
+            onPress={() => router.push({ pathname: "/activity", params: { tab: "Luggage" } })}
+            isLast
+          />
         </Section>
 
         {/* ---------- SETTINGS ---------- */}
-        <Section title="SETTINGS">
+        {/* <Section title="SETTINGS">
           <MenuItem
             icon="notifications"
             label="Notifications"
@@ -166,12 +175,21 @@ export default function ProfileScreen() {
           />
           <MenuItem icon="moon" label="App Theme" value="Light" />
           <MenuItem icon="globe" label="Language" value="English (US)" isLast />
-        </Section>
+        </Section> */}
 
         {/* ---------- SUPPORT ---------- */}
         <Section title="SUPPORT & LEGAL">
-          <MenuItem icon="help-circle" label="Help Center" />
-          <MenuItem icon="document-text" label="Privacy Policy" isLast />
+          <MenuItem
+            icon="help-circle"
+            label="Help Center"
+            onPress={() => router.push("/support")}
+          />
+          <MenuItem
+            icon="document-text"
+            label="Privacy Policy"
+            onPress={() => router.push("/privacy")}
+            isLast
+          />
         </Section>
 
         {/* ---------- LOGOUT ---------- */}

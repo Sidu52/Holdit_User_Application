@@ -1,1 +1,1 @@
-export { default } from "../../screens/booking/ActiveBookingScreen";
+export { default } from "../../screens/booking/ScheduleScreen";

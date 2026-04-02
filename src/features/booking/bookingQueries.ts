@@ -15,7 +15,7 @@ export const useBookings = () => {
     queryKey: QUERY_KEYS.bookings,
     queryFn: async () => {
       const response = await bookingEndpoints.getBookings();
-      return response.data?.data || [];
+      return response.data?.data?.bookings || response.data?.data || [];
     },
   });
 };
@@ -25,7 +25,7 @@ export const useBookingHistory = () => {
     queryKey: QUERY_KEYS.bookingHistory,
     queryFn: async () => {
       const response = await bookingEndpoints.getBookingHistory();
-      return response.data?.data || [];
+      return response.data?.data?.bookings || response.data?.data || [];
     },
   });
 };

@@ -14,12 +14,16 @@ const queryClient = new QueryClient({
   },
 });
 
+import { SocketProvider } from './SocketProvider';
+
 export const Providers = ({ children }: { children: React.ReactNode }) => {
   return (
     <SafeAreaProvider>
       <ReduxProvider store={store}>
         <QueryClientProvider client={queryClient}>
-          {children}
+          <SocketProvider>
+            {children}
+          </SocketProvider>
         </QueryClientProvider>
       </ReduxProvider>
     </SafeAreaProvider>

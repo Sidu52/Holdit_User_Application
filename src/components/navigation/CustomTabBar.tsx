@@ -1,10 +1,13 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export function CustomTabBar({ state, descriptors, navigation }: any) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]}>
       {state.routes.map((route: any, index: number) => {
         const { options } = descriptors[route.key];
         const isFocused = state.index === index;
@@ -15,7 +18,12 @@ export function CustomTabBar({ state, descriptors, navigation }: any) {
           }
         };
 
-        const icon = route.name === "index" ? "home" : "search";
+        const icon = (() => {
+          if (route.name === "index") return isFocused ? "home" : "home-outline";
+          if (route.name === "explore") return isFocused ? "search" : "search-outline";
+          if (route.name === "schedule") return isFocused ? "calendar" : "calendar-outline";
+          return isFocused ? "add-circle" : "add-circle-outline";
+        })();
 
         return (
           <TouchableOpacity
@@ -24,7 +32,7 @@ export function CustomTabBar({ state, descriptors, navigation }: any) {
             style={[styles.tab, isFocused && styles.activeTab]}
           >
             <Ionicons
-              name={icon}
+              name={icon as any}
               size={22}
               color={isFocused ? "#000" : "#999"}
             />
@@ -43,7 +51,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingTop: 12,
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderColor: "#eee",

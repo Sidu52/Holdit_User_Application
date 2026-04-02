@@ -9,7 +9,6 @@ import {
   ScrollView,
   Dimensions,
   Platform,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -25,7 +24,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { THEME } from "@/theme/theme";;
+import { THEME } from "@/theme/theme";
+import { showError, showSuccess } from "@/utils/toast";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 
 const { width } = Dimensions.get("window");
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -164,6 +165,7 @@ export default function ExtendBookingScreen() {
 
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Validate route param
   if (!bookingId) {
@@ -200,61 +202,34 @@ export default function ExtendBookingScreen() {
 
   const handleConfirmExtend = useCallback(() => {
     if (!selectedExtension || isProcessing) return;
+    setShowConfirmModal(true);
+  }, [selectedExtension, isProcessing]);
 
-    Alert.alert(
-      "Confirm Extension",
-      `Extend storage by ${selectedExtension.label} for $${extensionCost.toFixed(
-        2
-      )}?\n\nNew end time: ${newEndTime}`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Confirm & Pay",
-          onPress: async () => {
-            setIsProcessing(true);
-            try {
-              // TODO: Call extend API
-              // await extendBooking({
-              //   bookingId,
-              //   extensionId: selectedExtension.id,
-              //   duration: selectedExtension.duration,
-              //   type: selectedExtension.type,
-              // });
+  const onConfirmExtension = useCallback(async () => {
+    if (!selectedExtension) return;
+    setIsProcessing(true);
+    try {
+      // Simulate API call (TODO: Replace with actual mutation)
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
-              // Simulate API call
-              await new Promise((resolve) => setTimeout(resolve, 1500));
+      showSuccess(
+        `Your booking has been extended by ${selectedExtension.label}. New pickup: ${newEndTime}`,
+        "Storage Extended! ✅"
+      );
 
-              Alert.alert(
-                "Storage Extended! ✅",
-                `Your booking has been extended by ${selectedExtension.label}.\n\nNew pickup time: ${newEndTime}`,
-                [
-                  {
-                    text: "View Booking",
-                    onPress: () => {
-                      router.replace({
-                        pathname: "/booking/[id]",
-                        params: { id: bookingId },
-                      });
-                    },
-                  },
-                ]
-              );
-            } catch (err) {
-              if (__DEV__) {
-                console.error("Extend booking error:", err);
-              }
-              Alert.alert(
-                "Extension Failed",
-                "We couldn't process your extension. Please try again or contact support."
-              );
-            } finally {
-              setIsProcessing(false);
-            }
-          },
-        },
-      ]
-    );
-  }, [selectedExtension, extensionCost, newEndTime, isProcessing, bookingId, router]);
+      router.replace({
+        pathname: "/booking/[id]",
+        params: { id: bookingId },
+      });
+    } catch (err) {
+      if (__DEV__) {
+        console.error("Extend booking error:", err);
+      }
+      showError("We couldn't process your extension. Please try again or contact support.");
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedExtension, newEndTime, bookingId, router]);
 
   if (isLoading) {
     return (
@@ -512,6 +487,19 @@ export default function ExtendBookingScreen() {
           </TouchableOpacity>
         </View>
       </Animated.View>
+
+      {selectedExtension && (
+        <ConfirmationModal
+          visible={showConfirmModal}
+          onClose={() => setShowConfirmModal(false)}
+          onConfirm={onConfirmExtension}
+          title="Confirm Extension"
+          message={`Extend storage by ${selectedExtension.label} for $${extensionCost.toFixed(2)}?\n\nNew end time: ${newEndTime}`}
+          confirmLabel="Confirm & Pay"
+          cancelLabel="Cancel"
+          icon="time-outline"
+        />
+      )}
     </SafeAreaView>
   );
 }

@@ -23,7 +23,7 @@ export const bookingApi = {
     payload: SchedulePickupPayload,
   ): Promise<SchedulePickupResponse> => {
     const res = await api.post<ApiResponse<SchedulePickupResponse>>(
-      "/user/bookings/pickup",
+      "/user/booking",
       payload,
     );
     return res.data.data;
@@ -43,9 +43,17 @@ export const bookingApi = {
   // GET BOOKING BY ID
   getBookingById: async (bookingId: string): Promise<Booking> => {
     const res = await api.get<ApiResponse<Booking>>(
-      `/user/bookings/${bookingId}`,
+      `/user/booking/${bookingId}`,
     );
     return res.data.data;
+  },
+
+  // GET ACTIVE BOOKING
+  getActiveBooking: async (): Promise<{ bookings: Booking[]; total: number } | null> => {
+    const res = await api.get<ApiResponse<{ bookings: Booking[]; total: number }>>(
+      `/user/booking/active`,
+    );
+    return res.data.data ? res.data.data : null;
   },
 
   // CANCEL BOOKING
@@ -65,7 +73,7 @@ export const bookingApi = {
     payload: RequestReturnPayload,
   ): Promise<RequestReturnResponse> => {
     const res = await api.post<ApiResponse<RequestReturnResponse>>(
-      `/user/bookings/${bookingId}/return`,
+      `/user/booking/${bookingId}/return-request`,
       payload,
     );
     return res.data.data;

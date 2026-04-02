@@ -150,6 +150,7 @@ export interface Booking {
   _id: string;
   userId: string;
   status: string;
+  bookingCode?: string; // Optional booking code for display
   pickupLocation: {
     type: string;
     coordinates: [number, number];
@@ -158,6 +159,36 @@ export interface Booking {
   luggage: Luggage & { totalBags: number };
   pickup: {
     scheduledAt: string;
+    assignment?: {
+      driverId: string;
+      assignedAt: string;
+      startedAt?: string;
+      completedAt?: string;
+    };
+  };
+  storeId?: string;
+  store?: {
+    _id: string;
+    store_name: string;
+    store_address: string;
+    store_contact_number: string;
+    location: {
+      type: string;
+      coordinates: [number, number];
+    };
+  };
+  driver?: {
+    _id: string;
+    name: string;
+    phone: string;
+    avatar?: string;
+  };
+  pricing: {
+    currency: string;
+    baseFare: number;
+    serviceFee: number;
+    storageFee: number;
+    total: number;
   };
   returnLocation?: {
     type: string;
@@ -173,6 +204,8 @@ export interface Booking {
     reason: string;
     cancelledBy: string;
     cancelledAt: string;
+    refundAmount?: number;
+    refundStatus?: string;
   };
   timeline: TimelineEntry[];
   notes: string;

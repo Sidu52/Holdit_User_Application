@@ -11,7 +11,6 @@ import {
   Dimensions,
   Platform,
   Linking,
-  Alert,
   KeyboardAvoidingView,
   Keyboard,
   ActivityIndicator,
@@ -28,6 +27,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { showError, showSuccess } from "@/utils/toast";
 import { THEME } from "@/theme/theme";;
 
 const { width } = Dimensions.get("window");
@@ -80,138 +80,129 @@ const SUPPORT_OPTIONS: SupportOption[] = [
   {
     id: "opt-1",
     category: "booking",
-    title: "Booking Issue",
-    description: "Problems with booking, cancellation, or extension",
+    title: "Booking & Schedule",
+    description: "Issues with scheduling, active bookings, or extensions",
     icon: "calendar-outline",
-    color: "#2563eb",
+    color: THEME.PRIMARY,
   },
   {
     id: "opt-2",
     category: "payment",
-    title: "Payment & Refund",
-    description: "Payment failed, refund status, billing questions",
+    title: "Payments & Refunds",
+    description: "Transaction status, refunds, or billing questions",
     icon: "card-outline",
     color: "#7c3aed",
   },
   {
     id: "opt-3",
     category: "item_issue",
-    title: "Item Concern",
-    description: "Damaged, lost, or missing items",
-    icon: "alert-circle-outline",
-    color: "#ef4444",
+    title: "Luggage Safety",
+    description: "Report damaged, missing, or delayed items",
+    icon: "shield-checkmark-outline",
+    color: "#16a34a",
   },
   {
     id: "opt-4",
     category: "app_issue",
     title: "App & Technical",
-    description: "App crashes, bugs, or feature requests",
-    icon: "phone-portrait-outline",
+    description: "Technical bugs, location issues, or app crashes",
+    icon: "bug-outline",
     color: "#0891b2",
   },
   {
     id: "opt-5",
     category: "account",
-    title: "Account & Profile",
-    description: "Login issues, profile updates, data privacy",
+    title: "Account & Security",
+    description: "Profile updates, login issues, or data privacy",
     icon: "person-outline",
     color: "#d97706",
   },
   {
     id: "opt-6",
     category: "feedback",
-    title: "Feedback & Suggestions",
+    title: "Feedback",
     description: "Share your experience or suggest improvements",
     icon: "chatbubble-ellipses-outline",
-    color: "#16a34a",
+    color: THEME.SECONDARY,
   },
 ];
 
 const FAQ_DATA: FAQItem[] = [
   {
     id: "faq-1",
-    question: "How do I cancel my booking?",
+    question: "How do I book luggage storage?",
     answer:
-      'Go to your booking details and tap "Cancel Booking". Free cancellation is available before drop-off. After drop-off, contact support for assistance.',
+      'Go to the "Schedule" tab, select your pickup location and time, choose your luggage count, and confirm. A driver will be assigned to pick up your luggage.',
     category: "booking",
   },
   {
     id: "faq-2",
-    question: "What happens if I'm late for pickup?",
+    question: "Is my luggage safe with Holdit?",
     answer:
-      "If you're running late, you can extend your storage directly from the app. Additional charges apply based on the extension duration. If you don't extend, a standard hourly rate will be applied automatically.",
-    category: "booking",
-  },
-  {
-    id: "faq-3",
-    question: "How is my luggage secured?",
-    answer:
-      "All items are stored in CCTV-monitored, climate-controlled facilities with 24/7 security. Each item is tagged with a unique ID and insured up to $3,000.",
+      "Yes! Your luggage is stored in our secure, 24/7 monitored facilities. Every item is tagged, photographed during pickup, and insured for your peace of mind.",
     category: "item_issue",
   },
   {
-    id: "faq-4",
-    question: "When will I receive my refund?",
+    id: "faq-3",
+    question: "How can I track my booking?",
     answer:
-      "Refunds are typically processed within 3-5 business days. The amount will be credited back to your original payment method. You can track the refund status in your booking details.",
+      'You can track your booking status in real-time from the "My Luggage" section in your Profile. You\'ll see live updates from pickup to storage.',
+    category: "booking",
+  },
+  {
+    id: "faq-4",
+    question: "What are the storage charges?",
+    answer:
+      "Pricing depends on the size and number of bags. You can see the detailed pricing breakdown in the app before confirming your schedule.",
     category: "payment",
   },
   {
     id: "faq-5",
-    question: "What items are not allowed?",
+    question: "What items are prohibited?",
     answer:
-      "Prohibited items include: hazardous materials, perishable food, live animals, firearms, illegal substances, and items exceeding 50kg per piece. Fragile items are accepted with special handling.",
+      "For safety reasons, we do not store hazardous materials, flammable items, perishable food, illegal substances, or extremely fragile/high-value jewelry.",
     category: "item_issue",
   },
   {
     id: "faq-6",
-    question: "How do I change my payment method?",
+    question: "How do I request a return?",
     answer:
-      "Go to Profile > Payment Methods to add, remove, or set a default payment method. You can use credit/debit cards, Apple Pay, or Google Pay.",
-    category: "payment",
+      'Go to your active booking details in "My Luggage" and tap "Request Return". Provide your delivery address and preferred time for drop-off.',
+    category: "booking",
   },
   {
     id: "faq-7",
-    question: "Can I store items for more than 30 days?",
+    question: "Can I cancel my schedule?",
     answer:
-      "Standard bookings support up to 30 days. For longer storage needs, please contact our support team to arrange extended storage with special pricing.",
+      "Yes, you can cancel your pickup schedule before a driver is assigned or arrives at your location. Check our cancellation policy in the Legal section.",
     category: "booking",
   },
   {
     id: "faq-8",
-    question: "How do I delete my account?",
+    question: "How do I update my profile?",
     answer:
-      "Go to Profile > Settings > Account > Delete Account. Please note that this action is irreversible and all your data will be permanently removed within 30 days.",
+      "Go to Profile > Personal Information to update your name, phone number, or email address.",
     category: "account",
   },
 ];
 
 const CONTACT_METHODS: ContactMethod[] = [
   {
-    id: "contact-1",
-    method: "phone",
-    label: "Call Us",
-    sublabel: "Mon-Sun, 8AM-10PM EST",
-    icon: "call",
-    color: "#16a34a",
-    action: "tel:+12125550100",
-  },
-  {
     id: "contact-2",
     method: "email",
-    label: "Email Us",
-    sublabel: "Response within 24 hours",
+    label: "Email Support",
+    sublabel: "support@holdit.com",
     icon: "mail",
-    color: "#2563eb",
-    action: "mailto:support@holdmybag.com",
+    color: THEME.PRIMARY,
+    action: "mailto:support@holdit.com",
   },
   {
     id: "contact-3",
     method: "chat",
-    label: "Live Chat",
-    sublabel: "Available now • Avg. 2 min wait",
+    label: "In-App Chat",
+    sublabel: "Available 24/7",
     icon: "chatbubbles",
-    color: "#7c3aed",
+    color: THEME.SECONDARY,
     action: "chat",
   },
 ];
@@ -273,11 +264,7 @@ export default function SupportScreen() {
 
   const handleContactMethod = useCallback((method: ContactMethod) => {
     if (method.action === "chat") {
-      // TODO: Open live chat
-      Alert.alert(
-        "Live Chat",
-        "Live chat feature coming soon. Please use phone or email for now.",
-      );
+      router.push("/chat");
       return;
     }
 
@@ -306,15 +293,12 @@ export default function SupportScreen() {
     const trimmedMessage = formMessage.trim();
 
     if (!trimmedSubject) {
-      Alert.alert("Required", "Please enter a subject for your ticket.");
+      showError("Please enter a subject for your ticket.", "Required");
       return;
     }
 
     if (trimmedMessage.length < 10) {
-      Alert.alert(
-        "Too Short",
-        "Please describe your issue in at least 10 characters.",
-      );
+      showError("Please describe your issue in at least 10 characters.", "Too Short");
       return;
     }
 
@@ -350,9 +334,9 @@ export default function SupportScreen() {
       if (__DEV__) {
         console.error("Submit ticket error:", err);
       }
-      Alert.alert(
-        "Submission Failed",
+      showError(
         "We couldn't submit your ticket. Please try again or contact us directly.",
+        "Submission Failed"
       );
     } finally {
       setIsSubmitting(false);

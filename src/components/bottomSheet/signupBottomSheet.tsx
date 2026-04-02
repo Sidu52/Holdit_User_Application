@@ -22,10 +22,11 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { formatDateForInput } from "@/utils/date";
-
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 export default function SignupBottomSheet() {
   // Hooks
   const { data: user } = useProfile();
+  const insets = useSafeAreaInsets();
   const { data: location } = useUserLocation();
   const { mutate: completeProfile, isPending } = useCompleteProfile();
   const bottomSheetRef = useRef<BottomSheet>(null);
@@ -100,7 +101,7 @@ export default function SignupBottomSheet() {
       android_keyboardInputMode="adjustPan"
     >
       <BottomSheetScrollView
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, { paddingBottom: Math.max(insets.bottom + 40, 80) }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -261,7 +262,7 @@ export default function SignupBottomSheet() {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 24,
-    paddingBottom: Platform.OS === "ios" ? 100 : 80,
+    // paddingBottom is handled dynamically
   },
   header: {
     alignItems: "center",

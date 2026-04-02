@@ -19,12 +19,22 @@ export const useAutoCarousel = ({
     if (!dataLength) return;
 
     const timer = setInterval(() => {
-      indexRef.current = (indexRef.current + 1) % dataLength;
+      indexRef.current += 1;
 
       listRef.current?.scrollToOffset({
         offset: indexRef.current * itemWidth,
         animated: true,
       });
+
+      if (indexRef.current === dataLength) {
+        setTimeout(() => {
+          indexRef.current = 0;
+          listRef.current?.scrollToOffset({
+            offset: 0,
+            animated: false,
+          });
+        }, 500);
+      }
     }, interval);
 
     return () => clearInterval(timer);

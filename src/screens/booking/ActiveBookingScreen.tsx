@@ -62,13 +62,9 @@ export default function HomeScreen() {
 
   const [refreshing, setRefreshing] = React.useState(false);
 
-  // Data Hooks
-  const { data: activeBooking, refetch: refetchBooking } = useActiveBooking();
+  const { data: activeBookingResponse, refetch: refetchBooking } = useActiveBooking();
+  const activeBooking = activeBookingResponse?.bookings?.[0] || (activeBookingResponse && (activeBookingResponse as any)._id ? activeBookingResponse : null);
   const { data: recentActivity, refetch: refetchActivity } = useBookingHistory();
-  const notificationCount = 0; // Notification API not yet implemented
-
-   console.log("user:", user);
-    console.log("Nearest store:", nearestStore);
 
   // FIX: Remove console.log that exposes user PII in production
   if (__DEV__) {
@@ -176,7 +172,7 @@ export default function HomeScreen() {
       style={styles.container}
       onScroll={scrollHandler}
       scrollEventThrottle={16}
-      scrollEnabled={user?.is_signup}
+      scrollEnabled={true}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -197,7 +193,7 @@ export default function HomeScreen() {
             <View style={styles.headerLeft}>
               <TouchableOpacity
                 style={styles.locationContentHeader}
-                onPress={() => router.push("/profile")}
+                onPress={() => router.push("/addresses")}
                 accessibilityLabel={`Your address: ${displayAddress}`}
                 accessibilityRole="button"
               >
@@ -284,40 +280,93 @@ export default function HomeScreen() {
       </BackgroundGradient>
 
       <View style={styles.scrollContent}>
-        {/* QUICK ACTIONS */}
-        <Animated.View
-          entering={FadeInDown.delay(300).springify()}
-          style={styles.quickActionsContainer}
-        >
-          <QuickActionCard
-            icon="cube-outline"
-            label="Book Storage"
-            description="Store your bags"
-            color={THEME.PRIMARY}
-            onPress={() => router.push("/schedule")}
-          />
-          <QuickActionCard
-            icon="bicycle"
-            label="Track Order"
-            description="Live tracking"
-            color="#2563eb"
-            onPress={() => router.push("/myLuggage")}
-          />
-          <QuickActionCard
-            icon="location-outline"
-            label="Find Store"
-            description="Near you"
-            color="#7c3aed"
-            onPress={() => router.push("/stores")}
-          />
-          <QuickActionCard
-            icon="help-circle-outline"
-            label="Get Help"
-            description="24/7 support"
-            color="#059669"
-            onPress={() => router.push("/support")}
-          />
+        {/* ── BOOK NOW CTA ──────────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.bookNowWrapper}>
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={() => router.push("/book-now")}
+            style={styles.bookNowButton}
+            accessibilityLabel="Book new storage"
+            accessibilityRole="button"
+          >
+            <LinearGradient
+              colors={[THEME.PRIMARY, THEME.SECONDARY]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.bookNowGradient}
+            >
+              <View style={styles.bookNowIconWrap}>
+                 <LinearGradient
+                   colors={["rgba(255,255,255,0.3)", "rgba(255,255,255,0.1)"]}
+                   style={[StyleSheet.absoluteFill, { borderRadius: 14 }]}
+                 />
+                <Ionicons name="add-circle" size={28} color="#FFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.bookNowTitle}>Start New Booking</Text>
+                <Text style={styles.bookNowSubtitle}>Secure storage in just a few taps</Text>
+              </View>
+              <View style={styles.bookNowArrow}>
+                <Ionicons name="chevron-forward" size={20} color="#FFF" />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
         </Animated.View>
+
+        {/* ── ACTIVE BOOKING ────────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(400).springify()}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Active Booking</Text>
+            {activeBooking && (
+              <TouchableOpacity
+                onPress={() => {
+                  const bid = activeBooking?._id || activeBooking?.id;
+                  if (bid) {
+                    router.push({ pathname: "/booking/[id]", params: { id: bid } });
+                  }
+                }}
+                accessibilityLabel="View booking details"
+                accessibilityRole="button"
+              >
+                <Text style={styles.viewAll}>Details</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {activeBooking ? (
+            <ActiveBookingCard
+              booking={activeBooking}
+              onManage={() => {
+                const bid = activeBooking?._id || activeBooking?.id;
+                if (bid) {
+                  router.push({
+                    pathname: "/booking/[id]",
+                    params: { id: bid },
+                  });
+                }
+              }}
+            />
+          ) : (
+            <View style={styles.emptyBookingCard}>
+              <View style={styles.emptyBookingIconWrap}>
+                <Ionicons name="cube-outline" size={36} color={THEME.PRIMARY} />
+              </View>
+              <Text style={styles.emptyBookingTitle}>No Active Booking</Text>
+              <Text style={styles.emptyBookingDesc}>
+                You don't have any active storage right now.
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyBookingCta}
+                onPress={() => router.push("/book-now")}
+                accessibilityLabel="Start a new booking"
+                accessibilityRole="button"
+              >
+                <Text style={styles.emptyBookingCtaText}>Book Now</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </Animated.View>
+
         {/* ── OFFER BANNER ──────────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.delay(500).springify()}>
           <OfferBanner
@@ -325,7 +374,7 @@ export default function HomeScreen() {
             description="Book your first storage and get 20% off with code"
             couponCode="WELCOME"
             buttonText="Book Now"
-            onPress={() => router.push("/schedule")}
+            onPress={() => router.push("/book-now")}
           />
         </Animated.View>
 
@@ -333,22 +382,6 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(600).springify()}>
           <TipsSafetySection data={tipsData} />
         </Animated.View>
-
-        {/* ── ACTIVE STORAGE CARD ────────────────────────────────────── */}
-        {/* TODO: Replace `activeBooking` with real hook data when API is ready */}
-        {activeBooking && (
-          <Animated.View entering={FadeInDown.delay(700).springify()}>
-            <ActiveBookingCard
-              booking={activeBooking}
-              onManage={() =>
-                router.push({
-                  pathname: "/booking/[id]",
-                  params: { id: activeBooking.id },
-                })
-              }
-            />
-          </Animated.View>
-        )}
 
         {/* ── RECENT ACTIVITY ────────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.delay(800).springify()}>
@@ -369,17 +402,20 @@ export default function HomeScreen() {
               const meta = getActivityMeta(booking.status === "completed" ? "storage" : "pickup");
               return (
                 <Animated.View
-                  key={booking._id}
+                  key={(booking as any)?._id || (booking as any)?.id || index}
                   entering={FadeInRight.delay(850 + index * 100).springify()}
                 >
                   <TouchableOpacity
                     style={styles.activityItem}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/booking/[id]",
-                        params: { id: booking._id },
-                      })
-                    }
+                    onPress={() => {
+                      const bid = (booking as any)?._id || (booking as any)?.id;
+                      if (bid) {
+                        router.push({
+                          pathname: "/booking/[id]",
+                          params: { id: bid },
+                        });
+                      }
+                    }}
                     accessibilityLabel={`Booking ${booking._id}, ${booking.status}`}
                     accessibilityRole="button"
                   >
@@ -393,7 +429,7 @@ export default function HomeScreen() {
                     </View>
                     <View style={styles.activityInfo}>
                       <Text style={styles.activityTitle} numberOfLines={1}>
-                        Booking #{booking._id.slice(-4).toUpperCase()}
+                        Booking #{(((booking as any)?._id || (booking as any)?.id) || "").slice(-4).toUpperCase()}
                       </Text>
                       <Text style={styles.activityDesc} numberOfLines={1}>
                         {booking.pickupLocation?.address || "No address"}
@@ -461,140 +497,115 @@ const StepConnector = () => (
   </View>
 );
 
-const QuickActionCard = ({
-  icon,
-  label,
-  description,
-  color,
-  onPress,
-}: {
-  icon: IoniconsName;
-  label: string;
-  description: string;
-  color: string;
-  onPress: () => void;
-}) => {
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  return (
-    <AnimatedTouchable
-      style={[styles.quickActionCard, animatedStyle]}
-      onPress={onPress}
-      onPressIn={() => {
-        scale.value = withSpring(0.95);
-      }}
-      onPressOut={() => {
-        scale.value = withSpring(1);
-      }}
-      activeOpacity={0.8}
-      accessibilityLabel={`${label}: ${description}`}
-      accessibilityRole="button"
-    >
-      <View style={[styles.quickActionIcon, { backgroundColor: `${color}15` }]}>
-        <Ionicons name={icon} size={24} color={color} />
-      </View>
-      <Text style={styles.quickActionLabel}>{label}</Text>
-      <Text style={styles.quickActionDesc}>{description}</Text>
-    </AnimatedTouchable>
-  );
-};
 
 const ActiveBookingCard = ({
   booking,
   onManage,
 }: {
-  booking: {
-    id: string;
-    itemCount: number;
-    estimatedReturn: string;
-    status: "active" | "pending" | "completed";
-    location: string;
-  };
+  booking: any;
   onManage: () => void;
-}) => (
-  <View style={styles.activeCard}>
-    <LinearGradient
-      colors={[THEME.PRIMARY, THEME.SECONDARY]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.activeCardTopBorder}
-    />
+}) => {
+  const bid = booking?._id || booking?.id;
+  const displayId = booking.bookingCode
+    ? booking.bookingCode.split("-").pop()
+    : bid?.slice(-6).toUpperCase() || "N/A";
+    
+  const scheduledTime = booking.pickup?.scheduledAt
+    ? new Date(booking.pickup.scheduledAt).toLocaleString("en-US", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "TBD";
 
-    <View style={styles.activeHeader}>
-      <View>
-        <View style={styles.statusRow}>
-          <View style={styles.statusDot} />
-          <Text style={styles.activeTitle}>Active Storage</Text>
-        </View>
-        <Text style={styles.bookingId}>Booking #{booking.id}</Text>
-      </View>
-      <View style={styles.itemCountContainer}>
-        <Text style={styles.itemCount}>{booking.itemCount}</Text>
-        <Text style={styles.itemLabel}>ITEMS</Text>
-      </View>
-    </View>
+  const isStoredMode = booking.status === "in_storage" || booking.status === "at_store" || booking.status === "stored";
 
-    {booking.location ? (
-      <View style={styles.bookingLocationRow}>
-        <Ionicons name="location" size={14} color={THEME.TEXT_MUTED} />
-        <Text style={styles.bookingLocationText} numberOfLines={1}>
-          {booking.location}
-        </Text>
-      </View>
-    ) : null}
-
-    <View style={styles.timerBox}>
-      <View style={styles.timerIcon}>
-        <Ionicons name="time-outline" size={20} color={THEME.PRIMARY} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.timerLabel}>ESTIMATED RETURN</Text>
-        <Text style={styles.timerValue}>{booking.estimatedReturn}</Text>
-      </View>
-      <View
-        style={[
-          styles.statusChip,
-          {
-            backgroundColor:
-              booking.status === "active" ? "#dcfce7" : "#fef3c7",
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.statusChipText,
-            {
-              color: booking.status === "active" ? "#16a34a" : "#d97706",
-            },
-          ]}
-        >
-          {booking.status === "active" ? "In Storage" : "Pending"}
-        </Text>
-      </View>
-    </View>
-
-    <TouchableOpacity
-      style={styles.manageButton}
-      onPress={onManage}
-      accessibilityLabel={`Manage booking ${booking.id}`}
-      accessibilityRole="button"
-    >
+  return (
+    <View style={styles.activeCard}>
       <LinearGradient
         colors={[THEME.PRIMARY, THEME.SECONDARY]}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.manageButtonGradient}
+        end={{ x: 1, y: 1 }}
+        style={styles.activeCardTopBorder}
+      />
+
+      <View style={styles.activeHeader}>
+        <View style={styles.activeHeaderLeft}>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: isStoredMode ? "#22c55e" : THEME.PRIMARY }]} />
+            <Text style={styles.activeTitle}>{isStoredMode ? "Stored Securely" : "Pickup Scheduled"}</Text>
+          </View>
+          <Text style={styles.bookingId}>Order #{displayId}</Text>
+        </View>
+        <View style={styles.itemCountContainer}>
+           <LinearGradient
+             colors={[`${THEME.PRIMARY}20`, `${THEME.PRIMARY}05`]}
+             style={[StyleSheet.absoluteFill, { borderRadius: 12 }]}
+           />
+          <Text style={styles.itemCount}>{booking.luggage?.totalCount || 0}</Text>
+          <Text style={styles.itemLabel}>ITEMS</Text>
+        </View>
+      </View>
+
+      {booking.pickupLocation?.address ? (
+        <View style={styles.bookingLocationRow}>
+          <View style={styles.locationSmallIcon}>
+            <Ionicons name="location" size={12} color={THEME.PRIMARY} />
+          </View>
+          <Text style={styles.bookingLocationText} numberOfLines={1}>
+            {booking.pickupLocation.address}
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={styles.timerBox}>
+        <View style={styles.timerIcon}>
+          <Ionicons name="time" size={20} color={THEME.PRIMARY} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.timerLabel}>{isStoredMode ? "STORED SINCE" : "PICKUP WINDOW"}</Text>
+          <Text style={styles.timerValue}>{scheduledTime}</Text>
+        </View>
+        <View
+          style={[
+            styles.statusChip,
+            {
+              backgroundColor: isStoredMode ? "#dcfce7" : "#fffbeb",
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.statusChipText,
+              {
+                color: isStoredMode ? "#16a34a" : "#d97706",
+              },
+            ]}
+          >
+            {booking.status ? booking.status.replace("_", " ").toUpperCase() : "PENDING"}
+          </Text>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.manageButton}
+        onPress={onManage}
+        activeOpacity={0.85}
       >
-        <Text style={styles.manageButtonText}>Manage Booking</Text>
-        <Ionicons name="arrow-forward" size={16} color="#FFF" />
-      </LinearGradient>
-    </TouchableOpacity>
-  </View>
-);
+        <LinearGradient
+          colors={[THEME.PRIMARY, THEME.SECONDARY]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.manageButtonGradient}
+        >
+          <Text style={styles.manageButtonText}>Manage Your Booking</Text>
+          <Ionicons name="chevron-forward" size={16} color="#FFF" />
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 const EmptyState = ({
   icon,
@@ -765,50 +776,103 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  // Quick Actions
-  quickActionsContainer: {
+  // Book Now CTA
+  bookNowWrapper: {
+    marginBottom: 24,
+  },
+  bookNowButton: {
+    borderRadius: 18,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: THEME.PRIMARY,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 14,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  bookNowGradient: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
+    paddingVertical: 18,
     paddingHorizontal: 20,
-    gap: 12,
-    marginBottom: 20,
-    marginHorizontal: "auto",
+    gap: 14,
+    borderRadius: 18,
   },
-  quickActionCard: {
-    width: width / 2 - 48,
+  bookNowIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  bookNowTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFF",
+  },
+  bookNowSubtitle: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.75)",
+    marginTop: 2,
+  },
+
+  // Empty Active Booking
+  emptyBookingCard: {
     backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: "center",
+    marginBottom: 24,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.06,
-        shadowRadius: 8,
+        shadowRadius: 10,
       },
       android: {
         elevation: 2,
       },
     }),
   },
-  quickActionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  emptyBookingIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: `${THEME.PRIMARY}12`,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  quickActionLabel: {
-    fontSize: 14,
+  emptyBookingTitle: {
+    fontSize: 16,
+    fontWeight: "700",
     color: THEME.TEXT_DARK,
-    fontWeight: "600",
+    marginBottom: 6,
   },
-  quickActionDesc: {
-    fontSize: 11,
+  emptyBookingDesc: {
+    fontSize: 13,
     color: THEME.TEXT_MUTED,
-    marginTop: 2,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  emptyBookingCta: {
+    backgroundColor: THEME.PRIMARY,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  emptyBookingCtaText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
 
   // Banner
@@ -968,6 +1032,17 @@ const styles = StyleSheet.create({
     color: THEME.TEXT_MUTED,
     letterSpacing: 1,
   },
+  activeHeaderLeft: {
+    flex: 1,
+  },
+  locationSmallIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: `${THEME.PRIMARY}15`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   bookingLocationRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -979,6 +1054,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: THEME.TEXT_MUTED,
     flex: 1,
+  },
+  bookNowArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // Timer

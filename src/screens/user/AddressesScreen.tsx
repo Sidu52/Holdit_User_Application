@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,31 +20,28 @@ import {
 } from "@/features/user/user.queries";
 import { showSuccess, showError } from "@/utils/toast";
 import { UserAddress } from "@/features/auth/authTypes";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
 
 export default function AddressesScreen() {
   const router = useRouter();
   const { data: addresses, isLoading } = useAddresses();
   const { mutate: deleteAddress } = useDeleteAddress();
   const { mutate: updateAddress } = useUpdateAddress();
+  const [showDeleteModal, setShowDeleteModal] = React.useState(false);
+  const [selectedAddressId, setSelectedAddressId] = React.useState<string | null>(null);
+
   const handleDelete = (id: string) => {
-    Alert.alert(
-      "Delete Address",
-      "Are you sure you want to delete this address?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            deleteAddress(id, {
-              onSuccess: () => showSuccess("Address deleted"),
-              onError: (err: any) =>
-                showError(err.message || "Failed to delete address"),
-            });
-          },
-        },
-      ],
-    );
+    setSelectedAddressId(id);
+    setShowDeleteModal(true);
+  };
+
+  const onConfirmDelete = () => {
+    if (!selectedAddressId) return;
+    deleteAddress(selectedAddressId, {
+      onSuccess: () => showSuccess("Address deleted"),
+      onError: (err: any) =>
+        showError(err.message || "Failed to delete address"),
+    });
   };
 
   const handleSetDefault = (id: string) => {
@@ -180,6 +176,18 @@ export default function AddressesScreen() {
           </View>
         )}
       </ScrollView>
+
+      <ConfirmationModal
+        visible={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={onConfirmDelete}
+        title="Delete Address"
+        message="Are you sure you want to delete this address? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        isDestructive
+        icon="trash-outline"
+      />
     </SafeAreaView>
   );
 }

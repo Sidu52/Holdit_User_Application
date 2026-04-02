@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -7,18 +7,16 @@ import {
   ScrollView,
   Dimensions,
   Platform,
-  Alert,
   Linking,
   Share,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, MaterialIcons, Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   FadeInDown,
   FadeInRight,
-  FadeInUp,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -32,7 +30,13 @@ import Animated, {
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { THEME } from "@/theme/theme";;
+import { THEME } from "@/theme/theme";
+import { useBookingDetail as useBooking, useCancelBooking } from "@/features/booking/booking.queries";
+import { useStoreDetail } from "@/features/stores/stores.queries";
+import { format } from "date-fns";
+import { showInfo, showError, showSuccess } from "@/utils/toast";
+import { ConfirmationModal } from "@/components/common/ConfirmationModal";
+import { useBookingTracking } from "@/hooks/useBookingTracking";
 
 const { width } = Dimensions.get("window");
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -53,57 +57,7 @@ type BookingStatus =
   | "completed"
   | "cancelled";
 
-interface BookingDetail {
-  id: string;
-  status: BookingStatus;
-  createdAt: string;
-  store: {
-    id: string;
-    name: string;
-    address: string;
-    phone: string;
-    coordinates: { lat: number; lng: number };
-  };
-  items: BookingItem[];
-  pricing: {
-    type: "hourly" | "daily";
-    ratePerBag: number;
-    bagCount: number;
-    duration: number;
-    subtotal: number;
-    discount: number;
-    discountCode?: string;
-    tax: number;
-    total: number;
-    isPaid: boolean;
-    paymentMethod?: string;
-    paymentLast4?: string;
-  };
-  schedule: {
-    dropOff: string;
-    dropOffTime: string;
-    pickUp: string;
-    pickUpTime: string;
-    actualDropOff?: string;
-    actualPickUp?: string;
-  };
-  tracking: TrackingEvent[];
-  driver?: {
-    name: string;
-    phone: string;
-    initials: string;
-    rating: number;
-    vehicleInfo: string;
-    eta?: string;
-  };
-  supportTicketId?: string;
-  cancellation?: {
-    reason: string;
-    cancelledAt: string;
-    refundAmount: number;
-    refundStatus: "pending" | "processed" | "failed";
-  };
-}
+import { Booking, TimelineEntry } from "@/features/auth/authTypes";
 
 interface BookingItem {
   id: string;
@@ -115,7 +69,7 @@ interface BookingItem {
 
 interface TrackingEvent {
   id: string;
-  status: BookingStatus;
+  status: string;
   title: string;
   description: string;
   timestamp: string;
@@ -123,143 +77,10 @@ interface TrackingEvent {
   isCurrent: boolean;
 }
 
-// ─── MOCK DATA ────────────────────────────────────────────────────────────────
-// TODO: Replace with real API hook (useBookingDetail)
-
-const MOCK_BOOKING: BookingDetail = {
-  id: "HLD-8392",
-  status: "in_storage",
-  createdAt: "2024-01-15T10:30:00Z",
-  store: {
-    id: "store-1",
-    name: "LuggageHero JFK T4",
-    address: "JFK Airport, Terminal 4, Arrivals Hall, Queens, NY 11430",
-    phone: "+1 (212) 555-0189",
-    coordinates: { lat: 40.6413, lng: -73.7781 },
-  },
-  items: [
-    {
-      id: "item-1",
-      type: "large",
-      label: "Large Suitcase",
-      description: "Black Samsonite rolling suitcase",
-      tagId: "TAG-A001",
-    },
-    {
-      id: "item-2",
-      type: "medium",
-      label: "Backpack",
-      description: "Blue hiking backpack",
-      tagId: "TAG-A002",
-    },
-    {
-      id: "item-3",
-      type: "small",
-      label: "Carry-on Bag",
-      description: "Brown leather duffel",
-      tagId: "TAG-A003",
-    },
-  ],
-  pricing: {
-    type: "daily",
-    ratePerBag: 8.95,
-    bagCount: 3,
-    duration: 1,
-    subtotal: 26.85,
-    discount: 5.37,
-    discountCode: "WELCOME",
-    tax: 1.93,
-    total: 23.41,
-    isPaid: true,
-    paymentMethod: "visa",
-    paymentLast4: "4242",
-  },
-  schedule: {
-    dropOff: "Today, Jan 15",
-    dropOffTime: "10:30 AM",
-    pickUp: "Today, Jan 15",
-    pickUpTime: "6:00 PM",
-    actualDropOff: "10:35 AM",
-  },
-  tracking: [
-    {
-      id: "t1",
-      status: "confirmed",
-      title: "Booking Confirmed",
-      description: "Your booking has been confirmed",
-      timestamp: "10:30 AM",
-      isCompleted: true,
-      isCurrent: false,
-    },
-    {
-      id: "t2",
-      status: "pickup_scheduled",
-      title: "Drop-off Scheduled",
-      description: "Drop-off at LuggageHero JFK T4",
-      timestamp: "10:30 AM",
-      isCompleted: true,
-      isCurrent: false,
-    },
-    {
-      id: "t3",
-      status: "picked_up",
-      title: "Items Received",
-      description: "3 items checked in and tagged",
-      timestamp: "10:35 AM",
-      isCompleted: true,
-      isCurrent: false,
-    },
-    {
-      id: "t4",
-      status: "in_storage",
-      title: "Securely Stored",
-      description: "Your items are in our secure storage facility",
-      timestamp: "10:40 AM",
-      isCompleted: true,
-      isCurrent: true,
-    },
-    {
-      id: "t5",
-      status: "delivery_scheduled",
-      title: "Pickup Scheduled",
-      description: "Scheduled for 6:00 PM today",
-      timestamp: "6:00 PM",
-      isCompleted: false,
-      isCurrent: false,
-    },
-    {
-      id: "t6",
-      status: "delivered",
-      title: "Items Returned",
-      description: "All items returned to you",
-      timestamp: "",
-      isCompleted: false,
-      isCurrent: false,
-    },
-    {
-      id: "t7",
-      status: "completed",
-      title: "Booking Complete",
-      description: "Thank you for using HoldMyBag!",
-      timestamp: "",
-      isCompleted: false,
-      isCurrent: false,
-    },
-  ],
-  driver: {
-    name: "Michael R.",
-    phone: "+1 (212) 555-0234",
-    initials: "MR",
-    rating: 4.9,
-    vehicleInfo: "White Toyota Camry • NY-ABC-1234",
-    eta: "15 min",
-  },
-};
-
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
+// ──────── HELPERS ──────────────────────────────────────────────────────────────
 
 const getStatusConfig = (
-  status: BookingStatus
+  status: string
 ): {
   label: string;
   color: string;
@@ -268,6 +89,7 @@ const getStatusConfig = (
   description: string;
 } => {
   switch (status) {
+    case "created":
     case "confirmed":
       return {
         label: "Confirmed",
@@ -276,13 +98,23 @@ const getStatusConfig = (
         icon: "checkmark-circle",
         description: "Your booking is confirmed",
       };
+    case "store_assigned":
+      return {
+        label: "Store Assigned",
+        color: "#7c3aed",
+        bgColor: "#ede9fe",
+        icon: "business",
+        description: "Store has been assigned",
+      };
+    case "driver_assigned":
+    case "driver_arrived":
     case "pickup_scheduled":
       return {
-        label: "Drop-off Scheduled",
+        label: "Pickup Scheduled",
         color: "#7c3aed",
         bgColor: "#ede9fe",
         icon: "calendar",
-        description: "Drop-off has been scheduled",
+        description: "Driver is on the way",
       };
     case "picked_up":
       return {
@@ -290,39 +122,17 @@ const getStatusConfig = (
         color: "#0891b2",
         bgColor: "#cffafe",
         icon: "cube",
-        description: "Your items have been received",
+        description: "Driver has your items",
       };
+    case "at_store":
     case "in_storage":
+    case "stored":
       return {
-        label: "In Storage",
+        label: "Stored",
         color: "#16a34a",
         bgColor: "#dcfce7",
         icon: "shield-checkmark",
         description: "Items are securely stored",
-      };
-    case "delivery_scheduled":
-      return {
-        label: "Pickup Scheduled",
-        color: "#d97706",
-        bgColor: "#fef3c7",
-        icon: "time",
-        description: "Your pickup has been scheduled",
-      };
-    case "out_for_delivery":
-      return {
-        label: "On The Way",
-        color: "#ea580c",
-        bgColor: "#fff7ed",
-        icon: "car",
-        description: "Your items are on the way",
-      };
-    case "delivered":
-      return {
-        label: "Delivered",
-        color: "#16a34a",
-        bgColor: "#dcfce7",
-        icon: "checkmark-done-circle",
-        description: "Items have been returned",
       };
     case "completed":
       return {
@@ -340,9 +150,17 @@ const getStatusConfig = (
         icon: "close-circle",
         description: "Booking has been cancelled",
       };
+    case "no_driver_available":
+      return {
+        label: "No Driver Available",
+        color: "#ef4444",
+        bgColor: "#fee2e2",
+        icon: "alert-circle",
+        description: "Unable to find a driver for your return request. Please contact support.",
+      };
     default:
       return {
-        label: "Unknown",
+        label: status.replace("_", " ").toUpperCase(),
         color: "#6b7280",
         bgColor: "#f3f4f6",
         icon: "help-circle",
@@ -381,19 +199,7 @@ const getItemColor = (type: BookingItem["type"]): string => {
   }
 };
 
-const getPaymentIcon = (method?: string): IoniconsName => {
-  switch (method) {
-    case "visa":
-    case "mastercard":
-      return "card";
-    case "apple_pay":
-      return "logo-apple";
-    case "google_pay":
-      return "logo-google";
-    default:
-      return "card-outline";
-  }
-};
+
 
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
 
@@ -404,54 +210,169 @@ export default function BookingDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showFullTracking, setShowFullTracking] = useState(false);
   const [showPriceBreakdown, setShowPriceBreakdown] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const cancelBooking = useCancelBooking();
 
   // Validate route param
-  if (!id) {
+  if (!id || id === "undefined" || id === "null") {
     if (__DEV__) {
-      console.warn("Booking ID missing from route params");
+      console.warn("Invalid Booking ID in route params:", id);
     }
-    router.replace("/(tabs)/myLuggage");
+    router.replace("/(tabs)");
     return null;
   }
 
-  // TODO: Replace with real API hook
-  // const { data: booking, isLoading, isError, refetch } = useBookingDetail(id);
-  const booking = MOCK_BOOKING;
-  const isLoading = false;
-  const isError = false;
+  const { data: booking, isLoading, isError, refetch } = useBooking(id);
+  const { driverLocation, isConnected: isSocketConnected } = useBookingTracking(id);
+
+  // Fetch store detail if not populated in booking
+  const { data: storeDetailData, isLoading: isStoreLoading } = useStoreDetail(booking?.storeId);
+
+  // Normalize store object
+  const store = useMemo(() => {
+    if (booking?.store) {
+      const s = booking.store;
+      return {
+        id: s._id,
+        name: s.store_name,
+        address: s.store_address,
+        phone: s.store_contact_number,
+        coordinates: {
+          lat: s.location.coordinates[1],
+          lng: s.location.coordinates[0],
+        },
+      };
+    }
+    if (storeDetailData?.store) {
+      const s = storeDetailData.store;
+      return {
+        id: s._id,
+        name: s.store_name,
+        address: s.store_address,
+        phone: s.store_contact_number,
+        coordinates: {
+          lat: s.location.coordinates[1],
+          lng: s.location.coordinates[0],
+        },
+      };
+    }
+    return null;
+  }, [booking?.store, storeDetailData?.store]);
 
   const statusConfig = useMemo(
-    () => getStatusConfig(booking.status),
-    [booking.status]
+    () => getStatusConfig(booking?.status || ""),
+    [booking?.status]
   );
 
   const isActive = useMemo(() => {
-    const activeStatuses: BookingStatus[] = [
+    const activeStatuses = [
+      "created",
       "confirmed",
-      "pickup_scheduled",
+      "store_assigned",
+      "driver_assigned",
+      "driver_arrived",
       "picked_up",
+      "at_store",
       "in_storage",
-      "delivery_scheduled",
-      "out_for_delivery",
+      "stored",
     ];
-    return activeStatuses.includes(booking.status);
-  }, [booking.status]);
+    return activeStatuses.includes(booking?.status || "");
+  }, [booking?.status]);
 
   const canCancel = useMemo(() => {
-    const cancellableStatuses: BookingStatus[] = [
-      "confirmed",
-      "pickup_scheduled",
-    ];
-    return cancellableStatuses.includes(booking.status);
-  }, [booking.status]);
+    const cancellableStatuses = ["created", "confirmed", "store_assigned"];
+    return cancellableStatuses.includes(booking?.status || "");
+  }, [booking?.status]);
 
   const canExtend = useMemo(() => {
-    const extendableStatuses: BookingStatus[] = [
-      "in_storage",
-      "delivery_scheduled",
-    ];
-    return extendableStatuses.includes(booking.status);
-  }, [booking.status]);
+    const extendableStatuses = ["at_store", "in_storage", "stored"];
+    return extendableStatuses.includes(booking?.status || "");
+  }, [booking?.status]);
+
+  const canReturn = useMemo(() => {
+    const returnableStatuses = ["at_store", "in_storage", "stored"];
+    return returnableStatuses.includes(booking?.status || "");
+  }, [booking?.status]);
+
+  const canReview = useMemo(() => {
+    const reviewableStatuses = ["completed", "delivered"];
+    return reviewableStatuses.includes(booking?.status || "");
+  }, [booking?.status]);
+
+  const atStoreTime = useMemo(() => {
+    const event = booking?.timeline?.find((evt: any) => evt.status === "at_store" || evt.status === "in_storage" || evt.status === "stored");
+    if (event?.timestamp) {
+      return format(new Date(event.timestamp), "hh:mm a, MMM dd");
+    }
+    if (booking?.status === "in_storage" || booking?.status === "at_store" || booking?.status === "stored") {
+      return format(new Date(), "hh:mm a, MMM dd");
+    }
+    return null;
+  }, [booking?.timeline, booking?.status]);
+
+  // ── Data Transformation ───────────────────────────────────────────
+  const items = useMemo(() => {
+    if (!booking?.luggage) return [];
+    const result: BookingItem[] = [];
+    const luggage = booking.luggage;
+    const bookingCode = booking._id.slice(-8).toUpperCase();
+
+    if (luggage.small && luggage.small > 0) {
+      result.push({
+        id: "small",
+        type: "small",
+        label: "Small Bag",
+        description: `${luggage.small} item(s)`,
+        tagId: bookingCode,
+      });
+    }
+    if (luggage.medium && luggage.medium > 0) {
+      result.push({
+        id: "medium",
+        type: "medium",
+        label: "Medium Bag",
+        description: `${luggage.medium} item(s)`,
+        tagId: bookingCode,
+      });
+    }
+    if (luggage.large && luggage.large > 0) {
+      result.push({
+        id: "large",
+        type: "large",
+        label: "Large Bag",
+        description: `${luggage.large} item(s)`,
+        tagId: bookingCode,
+      });
+    }
+    if (luggage.other && luggage.other > 0) {
+      result.push({
+        id: "other",
+        type: "special",
+        label: "Other Item",
+        description: `${luggage.other} item(s)`,
+        tagId: bookingCode,
+      });
+    }
+    return result;
+  }, [booking?.luggage, booking?._id]);
+
+  const trackingEvents = useMemo(() => {
+    if (!booking?.timeline) return [];
+    return (booking.timeline as TimelineEntry[]).map((item: any, index: number) => ({
+      id: `t-${index}`,
+      status: item.status,
+      title: getStatusConfig(item.status).label,
+      description: item.note,
+      timestamp: item.timestamp ? format(new Date(item.timestamp), "hh:mm a") : "",
+      isCompleted: true,
+      isCurrent: index === booking.timeline.length - 1,
+    }));
+  }, [booking?.timeline]);
+
+  const visibleTracking = useMemo(() => {
+    if (showFullTracking) return [...trackingEvents].reverse();
+    return trackingEvents.length > 0 ? [trackingEvents[trackingEvents.length - 1]] : [];
+  }, [trackingEvents, showFullTracking]);
 
   // ── Countdown Timer ────────────────────────────────────────────────
   const [countdown, setCountdown] = useState({
@@ -538,15 +459,16 @@ export default function BookingDetailScreen() {
   // ── Actions ────────────────────────────────────────────────────────
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // TODO: await refetch();
-    setTimeout(() => setRefreshing(false), 1000);
-  }, []);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   const handleShare = useCallback(async () => {
+    if (!booking) return;
     try {
       await Share.share({
-        title: `Booking #${booking.id}`,
-        message: `My luggage booking #${booking.id} at ${booking.store.name}. Status: ${statusConfig.label}.`,
+        title: `Booking #${booking.bookingCode}`,
+        message: `My luggage booking #${booking.bookingCode}${store ? ` at ${store.name}` : ""}. Status: ${statusConfig.label}.`,
       });
     } catch (err) {
       if (__DEV__) {
@@ -556,75 +478,86 @@ export default function BookingDetailScreen() {
   }, [booking, statusConfig]);
 
   const handleCallStore = useCallback(() => {
-    const phone = booking.store.phone.replace(/[^+0-9]/g, "");
+    if (!store?.phone) return;
+    const phone = store.phone.replace(/[^+0-9]/g, "");
     Linking.canOpenURL(`tel:${phone}`).then((supported) => {
       if (supported) Linking.openURL(`tel:${phone}`);
     });
-  }, [booking.store.phone]);
+  }, [store?.phone]);
 
   const handleCallDriver = useCallback(() => {
-    if (!booking.driver?.phone) return;
-    const phone = booking.driver.phone.replace(/[^+0-9]/g, "");
-    Linking.canOpenURL(`tel:${phone}`).then((supported) => {
-      if (supported) Linking.openURL(`tel:${phone}`);
-    });
-  }, [booking.driver?.phone]);
+    return;
+  }, []);
 
   const handleDirections = useCallback(() => {
-    const { lat, lng } = booking.store.coordinates;
+    if (!store?.coordinates) return;
+    const { lat, lng } = store.coordinates;
     const url = Platform.select({
       ios: `maps:0,0?q=${lat},${lng}`,
-      android: `geo:${lat},${lng}?q=${lat},${lng}(${booking.store.name})`,
+      android: `geo:${lat},${lng}?q=${lat},${lng}(${store.name})`,
     });
     if (url) Linking.openURL(url);
-  }, [booking.store]);
+  }, [store]);
 
   const handleCancel = useCallback(() => {
-    Alert.alert(
-      "Cancel Booking",
-      "Are you sure you want to cancel this booking? You will receive a full refund if cancelled before drop-off.",
-      [
-        { text: "Keep Booking", style: "cancel" },
-        {
-          text: "Cancel Booking",
-          style: "destructive",
-          onPress: () => {
-            // TODO: Call cancel API
-            // cancelBooking(booking.id);
-            if (__DEV__) {
-              console.log("Cancel booking:", booking.id);
-            }
-          },
+    setShowCancelModal(true);
+  }, []);
+
+  const onConfirmCancel = useCallback(() => {
+    cancelBooking.mutate(
+      { bookingId: id, reason: "Cancelled by user" },
+      {
+        onSuccess: () => {
+          showSuccess("Your booking has been cancelled successfully.", "Booking Cancelled");
+          refetch();
         },
-      ]
+        onError: (err: any) => {
+          showError(err.response?.data?.message || "Failed to cancel booking. Please try again.");
+        },
+      }
     );
-  }, [booking.id]);
+  }, [id, cancelBooking, refetch]);
 
   const handleExtend = useCallback(() => {
     router.push({
       pathname: "/booking/extend",
-      params: { bookingId: booking.id },
+      params: { bookingId: id },
     });
-  }, [router, booking.id]);
+  }, [router, id]);
+
+  const handleRequestReturn = useCallback(() => {
+    router.push({
+      pathname: "/requestReturn",
+      params: { bookingId: id },
+    });
+  }, [router, id]);
+
+  const handleLeaveReview = useCallback(() => {
+    router.push({
+      pathname: "/review",
+      params: { bookingId: id },
+    });
+  }, [router, id]);
 
   const handleSupport = useCallback(() => {
     router.push({
       pathname: "/support",
-      params: { bookingId: booking.id },
+      params: { bookingId: id },
     });
-  }, [router, booking.id]);
+  }, [router, id]);
 
   const handleViewStore = useCallback(() => {
+    if (!store?.id) return;
     router.push({
       pathname: "/stores/[id]",
-      params: { id: booking.store.id },
+      params: { id: store.id },
     });
-  }, [router, booking.store.id]);
+  }, [router, store?.id]);
 
   const formatCountdown = (val: number) => val.toString().padStart(2, "0");
 
   // ── Loading / Error ────────────────────────────────────────────────
-  if (isLoading) {
+  if (isLoading || (booking?.storeId && isStoreLoading)) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={THEME.PRIMARY} />
@@ -633,7 +566,7 @@ export default function BookingDetailScreen() {
     );
   }
 
-  if (isError) {
+  if (isError || !booking) {
     return (
       <SafeAreaView style={styles.errorContainer} edges={["top"]}>
         <Ionicons
@@ -655,11 +588,6 @@ export default function BookingDetailScreen() {
     );
   }
 
-  // ── Visible Tracking Steps ─────────────────────────────────────────
-  const visibleTracking = showFullTracking
-    ? booking.tracking
-    : booking.tracking.filter((t) => t.isCompleted || t.isCurrent);
-
   return (
     <View style={styles.container}>
       {/* ── FLOATING HEADER ────────────────────────────────────────── */}
@@ -677,7 +605,7 @@ export default function BookingDetailScreen() {
 
           <Animated.View style={[styles.headerCenter, headerTitleStyle]}>
             <Text style={styles.headerTitle} numberOfLines={1}>
-              Booking #{booking.id}
+              Booking #{booking.bookingCode}
             </Text>
             <View
               style={[
@@ -720,10 +648,10 @@ export default function BookingDetailScreen() {
         {/* ── STATUS HERO ──────────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.duration(400)}>
           <LinearGradient
-            colors={[statusConfig.color, `${statusConfig.color}cc`]}
+            colors={[THEME.PRIMARY, THEME.SECONDARY]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.statusHero}
+            style={[styles.statusHero, { borderBottomLeftRadius: 36, borderBottomRightRadius: 36 }]}
           >
             <View style={styles.statusHeroContent}>
               {/* Pulsing Circle */}
@@ -738,20 +666,32 @@ export default function BookingDetailScreen() {
                   />
                 )}
                 <View style={styles.statusIconCircle}>
-                  <Ionicons name={statusConfig.icon} size={32} color="#FFF" />
+                  <Ionicons name={statusConfig.icon} size={36} color="#FFF" />
                 </View>
               </View>
 
-              <Text style={styles.statusLabel}>{statusConfig.label}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.statusLabel}>{statusConfig.label}</Text>
+                {isSocketConnected && isActive && (
+                  <View style={styles.liveBadge}>
+                    <View style={styles.liveDot} />
+                    <Text style={styles.liveText}>LIVE</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.statusDesc}>{statusConfig.description}</Text>
 
               <View style={styles.bookingIdBadge}>
-                <Text style={styles.bookingIdText}>#{booking.id}</Text>
+                <LinearGradient
+                  colors={["rgba(255,255,255,0.25)", "rgba(255,255,255,0.1)"]}
+                  style={[StyleSheet.absoluteFill, { borderRadius: 10 }]}
+                />
+                <Text style={styles.bookingIdText}>ORDER #{(booking?.bookingCode || booking?._id || "").slice(-8).toUpperCase()}</Text>
               </View>
             </View>
 
-            {/* Countdown Timer (if active) */}
-            {isActive && (
+            {/* Countdown Timer or Stored Time (if active) */}
+            {isActive && booking?.status !== "at_store" && booking?.status !== "in_storage" && booking?.status !== "stored" && (
               <View style={styles.countdownContainer}>
                 <Text style={styles.countdownLabel}>TIME REMAINING</Text>
                 <View style={styles.countdownRow}>
@@ -770,6 +710,13 @@ export default function BookingDetailScreen() {
                     label="SEC"
                   />
                 </View>
+              </View>
+            )}
+
+            {(booking?.status === "at_store" || booking?.status === "in_storage" || booking?.status === "stored") && atStoreTime && (
+              <View style={styles.countdownContainer}>
+                <Text style={styles.countdownLabel}>STORED AT</Text>
+                <Text style={{color: '#FFF', fontSize: 24, fontWeight: '800', marginTop: 8}}>{atStoreTime}</Text>
               </View>
             )}
           </LinearGradient>
@@ -804,13 +751,12 @@ export default function BookingDetailScreen() {
           />
         </Animated.View>
 
-        {/* ── SCHEDULE CARD ────────────────────────────────────────── */}
+        {/* ── PICKUP CARD ────────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.delay(200).springify()}>
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Schedule</Text>
+            <Text style={styles.sectionTitle}>Pickup Details</Text>
 
             <View style={styles.scheduleRow}>
-              {/* Drop-off */}
               <View style={styles.scheduleItem}>
                 <View
                   style={[
@@ -818,150 +764,55 @@ export default function BookingDetailScreen() {
                     { backgroundColor: "#dbeafe" },
                   ]}
                 >
-                  <Ionicons name="arrow-down-circle" size={20} color="#2563eb" />
+                  <Ionicons name="location" size={20} color="#2563eb" />
                 </View>
-                <View>
-                  <Text style={styles.scheduleLabel}>DROP-OFF</Text>
-                  <Text style={styles.scheduleDate}>
-                    {booking.schedule.dropOff}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.scheduleLabel}>PICKUP LOCATION</Text>
+                  <Text style={styles.scheduleDate} numberOfLines={2}>
+                    {booking.pickupLocation?.address || "No address provided"}
                   </Text>
-                  <Text style={styles.scheduleTime}>
-                    {booking.schedule.dropOffTime}
-                  </Text>
-                  {booking.schedule.actualDropOff && (
-                    <Text style={styles.scheduleActual}>
-                      Actual: {booking.schedule.actualDropOff}
-                    </Text>
-                  )}
                 </View>
               </View>
 
-              {/* Connector */}
-              <View style={styles.scheduleConnector}>
-                <View style={styles.scheduleConnectorLine} />
-                <Ionicons
-                  name="arrow-forward"
-                  size={14}
-                  color={THEME.TEXT_MUTED}
-                />
-                <View style={styles.scheduleConnectorLine} />
-              </View>
-
-              {/* Pick-up */}
               <View style={styles.scheduleItem}>
                 <View
                   style={[
                     styles.scheduleIconBg,
-                    { backgroundColor: "#dcfce7" },
+                    { backgroundColor: "#ede9fe" },
                   ]}
                 >
-                  <Ionicons name="arrow-up-circle" size={20} color="#16a34a" />
+                  <Ionicons name="time" size={20} color="#7c3aed" />
                 </View>
                 <View>
-                  <Text style={styles.scheduleLabel}>PICK-UP</Text>
-                  <Text style={styles.scheduleDate}>
-                    {booking.schedule.pickUp}
-                  </Text>
+                  <Text style={styles.scheduleLabel}>SCHEDULED AT</Text>
                   <Text style={styles.scheduleTime}>
-                    {booking.schedule.pickUpTime}
+                    {booking.pickup?.scheduledAt
+                      ? format(new Date(booking.pickup.scheduledAt), "hh:mm a")
+                      : "TBD"}
                   </Text>
-                  {booking.schedule.actualPickUp && (
-                    <Text style={styles.scheduleActual}>
-                      Actual: {booking.schedule.actualPickUp}
-                    </Text>
-                  )}
+                  <Text style={styles.scheduleDate}>
+                    {booking.pickup?.scheduledAt
+                      ? format(new Date(booking.pickup.scheduledAt), "MMM dd, yyyy")
+                      : ""}
+                  </Text>
                 </View>
               </View>
             </View>
           </View>
         </Animated.View>
 
-        {/* ── DRIVER CARD (if assigned) ────────────────────────────── */}
-        {booking.driver && (
-          <Animated.View entering={FadeInDown.delay(250).springify()}>
-            <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Assigned Driver</Text>
-
-              <View style={styles.driverCard}>
-                <View style={styles.driverAvatar}>
-                  <LinearGradient
-                    colors={[THEME.PRIMARY, THEME.SECONDARY]}
-                    style={styles.driverAvatarGradient}
-                  >
-                    <Text style={styles.driverInitials}>
-                      {booking.driver.initials}
-                    </Text>
-                  </LinearGradient>
-                </View>
-
-                <View style={styles.driverInfo}>
-                  <Text style={styles.driverName}>{booking.driver.name}</Text>
-                  <View style={styles.driverRatingRow}>
-                    <Ionicons name="star" size={12} color="#f59e0b" />
-                    <Text style={styles.driverRating}>
-                      {booking.driver.rating}
-                    </Text>
-                  </View>
-                  <Text style={styles.driverVehicle}>
-                    {booking.driver.vehicleInfo}
-                  </Text>
-                </View>
-
-                {booking.driver.eta && (
-                  <View style={styles.etaBadge}>
-                    <Ionicons
-                      name="time-outline"
-                      size={14}
-                      color={THEME.PRIMARY}
-                    />
-                    <Text style={styles.etaText}>
-                      ETA: {booking.driver.eta}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.driverActions}>
-                <TouchableOpacity
-                  style={styles.driverActionBtn}
-                  onPress={handleCallDriver}
-                  accessibilityLabel="Call driver"
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="call" size={18} color={THEME.PRIMARY} />
-                  <Text style={styles.driverActionText}>Call</Text>
-                </TouchableOpacity>
-                <View style={styles.driverActionDivider} />
-                <TouchableOpacity
-                  style={styles.driverActionBtn}
-                  onPress={() => {
-                    // TODO: Implement chat
-                  }}
-                  accessibilityLabel="Message driver"
-                  accessibilityRole="button"
-                >
-                  <Ionicons
-                    name="chatbubble"
-                    size={18}
-                    color={THEME.PRIMARY}
-                  />
-                  <Text style={styles.driverActionText}>Message</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Animated.View>
-        )}
+        {/* ── DRIVER INFO HIDDEN IF NOT AVAILABLE ────────────────── */}
 
         {/* ── ITEMS LIST ───────────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.delay(300).springify()}>
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>
-                Your Items ({booking.items.length})
+                Your Items ({items.length})
               </Text>
             </View>
 
-            {booking.items.map((item, index) => (
+            {items.map((item, index) => (
               <Animated.View
                 key={item.id}
                 entering={FadeInRight.delay(350 + index * 80).springify()}
@@ -969,7 +820,7 @@ export default function BookingDetailScreen() {
                 <View
                   style={[
                     styles.itemCard,
-                    index === booking.items.length - 1 && styles.itemCardLast,
+                    index === items.length - 1 && styles.itemCardLast,
                   ]}
                 >
                   <View
@@ -1129,153 +980,58 @@ export default function BookingDetailScreen() {
         </Animated.View>
 
         {/* ── STORE INFO ───────────────────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(500).springify()}>
-          <TouchableOpacity
-            style={styles.sectionCard}
-            onPress={handleViewStore}
-            activeOpacity={0.7}
-            accessibilityLabel={`View store: ${booking.store.name}`}
-            accessibilityRole="button"
-          >
-            <View style={styles.storeInfoRow}>
-              <View style={styles.storeIconBg}>
-                <Ionicons name="storefront" size={22} color={THEME.PRIMARY} />
-              </View>
-              <View style={styles.storeInfoContent}>
-                <Text style={styles.storeInfoName}>{booking.store.name}</Text>
-                <Text style={styles.storeInfoAddress} numberOfLines={1}>
-                  {booking.store.address}
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={THEME.TEXT_MUTED}
-              />
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* ── PRICING BREAKDOWN ────────────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(550).springify()}>
-          <View style={styles.sectionCard}>
+        {store && (
+          <Animated.View entering={FadeInDown.delay(500).springify()}>
             <TouchableOpacity
-              style={styles.sectionHeaderRow}
-              onPress={() => setShowPriceBreakdown(!showPriceBreakdown)}
-              accessibilityLabel={
-                showPriceBreakdown
-                  ? "Hide price breakdown"
-                  : "Show price breakdown"
-              }
+              style={styles.sectionCard}
+              onPress={handleViewStore}
+              activeOpacity={0.7}
+              accessibilityLabel={`View store: ${store.name}`}
               accessibilityRole="button"
             >
-              <Text style={styles.sectionTitle}>Payment</Text>
-              <View style={styles.priceTotalBadge}>
-                <Text style={styles.priceTotalText}>
-                  ${booking.pricing.total.toFixed(2)}
-                </Text>
+              <View style={styles.storeInfoRow}>
+                <View style={styles.storeIconBg}>
+                  <Ionicons name="storefront" size={22} color={THEME.PRIMARY} />
+                </View>
+                <View style={styles.storeInfoContent}>
+                  <Text style={styles.storeInfoName}>{store.name}</Text>
+                  <Text style={styles.storeInfoAddress} numberOfLines={1}>
+                    {store.address}
+                  </Text>
+                </View>
                 <Ionicons
-                  name={showPriceBreakdown ? "chevron-up" : "chevron-down"}
-                  size={16}
-                  color={THEME.PRIMARY}
+                  name="chevron-forward"
+                  size={18}
+                  color={THEME.TEXT_MUTED}
                 />
               </View>
             </TouchableOpacity>
+          </Animated.View>
+        )}
 
-            {showPriceBreakdown && (
-              <Animated.View entering={FadeInDown.duration(200)}>
-                {/* Rate Info */}
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>
-                    {booking.pricing.bagCount} bag
-                    {booking.pricing.bagCount > 1 ? "s" : ""} ×{" "}
-                    {booking.pricing.duration}{" "}
-                    {booking.pricing.type === "daily" ? "day" : "hour"}
-                    {booking.pricing.duration > 1 ? "s" : ""} × $
-                    {booking.pricing.ratePerBag.toFixed(2)}
+        {/* ── PRICING BREAKDOWN HIDDEN IF NO TOTAL ────────────────── */}
+        {booking.pricing.total && (
+          <Animated.View entering={FadeInDown.delay(550).springify()}>
+            <View style={styles.sectionCard}>
+              <TouchableOpacity
+                style={styles.sectionHeaderRow}
+                onPress={() => setShowPriceBreakdown(!showPriceBreakdown)}
+              >
+                <Text style={styles.sectionTitle}>Payment</Text>
+                <View style={styles.priceTotalBadge}>
+                  <Text style={styles.priceTotalText}>
+                    {booking.pricing.currency} {(booking.pricing.total || 0).toFixed(2)}
                   </Text>
-                  <Text style={styles.priceValue}>
-                    ${booking.pricing.subtotal.toFixed(2)}
-                  </Text>
-                </View>
-
-                {/* Discount */}
-                {booking.pricing.discount > 0 && (
-                  <View style={styles.priceRow}>
-                    <View style={styles.discountRow}>
-                      <Text style={styles.discountLabel}>Discount</Text>
-                      {booking.pricing.discountCode && (
-                        <View style={styles.discountCodeBadge}>
-                          <Text style={styles.discountCodeText}>
-                            {booking.pricing.discountCode}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.discountValue}>
-                      -${booking.pricing.discount.toFixed(2)}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Tax */}
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Tax</Text>
-                  <Text style={styles.priceValue}>
-                    ${booking.pricing.tax.toFixed(2)}
-                  </Text>
-                </View>
-
-                {/* Divider */}
-                <View style={styles.priceDivider} />
-
-                {/* Total */}
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceTotalLabel}>Total</Text>
-                  <Text style={styles.priceTotalValue}>
-                    ${booking.pricing.total.toFixed(2)}
-                  </Text>
-                </View>
-
-                {/* Payment Method */}
-                <View style={styles.paymentMethodRow}>
                   <Ionicons
-                    name={getPaymentIcon(booking.pricing.paymentMethod)}
-                    size={20}
-                    color={THEME.TEXT_DARK}
+                    name={showPriceBreakdown ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={THEME.PRIMARY}
                   />
-                  <Text style={styles.paymentMethodText}>
-                    {booking.pricing.paymentMethod?.toUpperCase()} ••••{" "}
-                    {booking.pricing.paymentLast4}
-                  </Text>
-                  <View
-                    style={[
-                      styles.paymentStatusBadge,
-                      {
-                        backgroundColor: booking.pricing.isPaid
-                          ? "#dcfce7"
-                          : "#fef3c7",
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.paymentStatusText,
-                        {
-                          color: booking.pricing.isPaid
-                            ? "#16a34a"
-                            : "#d97706",
-                        },
-                      ]}
-                    >
-                      {booking.pricing.isPaid ? "Paid" : "Pending"}
-                    </Text>
-                  </View>
                 </View>
-              </Animated.View>
-            )}
-          </View>
-        </Animated.View>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
 
         {/* ── ACTION BUTTONS ───────────────────────────────────────── */}
         <Animated.View
@@ -1297,6 +1053,44 @@ export default function BookingDetailScreen() {
               >
                 <Ionicons name="time-outline" size={20} color="#FFF" />
                 <Text style={styles.extendButtonText}>Extend Storage</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {canReturn && (
+            <TouchableOpacity
+              style={styles.extendButton}
+              onPress={handleRequestReturn}
+              accessibilityLabel="Request return parcel"
+              accessibilityRole="button"
+            >
+              <LinearGradient
+                colors={[THEME.PRIMARY, THEME.SECONDARY]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.extendButtonGradient}
+              >
+                <Ionicons name="car-outline" size={20} color="#FFF" />
+                <Text style={styles.extendButtonText}>Request Return</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {canReview && (
+            <TouchableOpacity
+              style={styles.extendButton}
+              onPress={handleLeaveReview}
+              accessibilityLabel="Leave a Review"
+              accessibilityRole="button"
+            >
+              <LinearGradient
+                colors={["#0891b2", "#0284c7"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.extendButtonGradient}
+              >
+                <Ionicons name="star-outline" size={20} color="#FFF" />
+                <Text style={styles.extendButtonText}>Leave Review</Text>
               </LinearGradient>
             </TouchableOpacity>
           )}
@@ -1345,7 +1139,7 @@ export default function BookingDetailScreen() {
               <View style={styles.refundRow}>
                 <Text style={styles.refundLabel}>Refund Amount</Text>
                 <Text style={styles.refundAmount}>
-                  ${booking.cancellation.refundAmount.toFixed(2)}
+                  ${(booking.cancellation.refundAmount || 0).toFixed(2)}
                 </Text>
               </View>
               <View
@@ -1375,8 +1169,8 @@ export default function BookingDetailScreen() {
                   ]}
                 >
                   Refund{" "}
-                  {booking.cancellation.refundStatus.charAt(0).toUpperCase() +
-                    booking.cancellation.refundStatus.slice(1)}
+                  {booking.cancellation.refundStatus ? (booking.cancellation.refundStatus.charAt(0).toUpperCase() +
+                    booking.cancellation.refundStatus.slice(1)) : "Pending"}
                 </Text>
               </View>
             </View>
@@ -1385,6 +1179,18 @@ export default function BookingDetailScreen() {
 
         <View style={styles.bottomSpacer} />
       </AnimatedScrollView>
+
+      <ConfirmationModal
+        visible={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={onConfirmCancel}
+        title="Cancel Booking"
+        message="Are you sure you want to cancel this booking? You will receive a full refund if cancelled before drop-off."
+        confirmLabel="Cancel Booking"
+        cancelLabel="Keep Booking"
+        isDestructive
+        icon="close-circle-outline"
+      />
     </View>
   );
 }
@@ -1555,57 +1361,60 @@ const styles = StyleSheet.create({
 
   // Status Hero
   statusHero: {
-    paddingTop: 110,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
+    paddingTop: 100,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
   },
   statusHeroContent: {
     alignItems: "center",
   },
   statusIconWrapper: {
-    position: "relative",
-    marginBottom: 16,
-    width: 72,
-    height: 72,
-    justifyContent: "center",
+    width: 90,
+    height: 90,
     alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
   },
-  pulseCircle: {
-    position: "absolute",
+  statusIconCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFF",
+  },
+  pulseCircle: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 45,
     borderWidth: 3,
   },
-  statusIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
   statusLabel: {
-    fontSize: 24,
-    fontWeight: "800",
+    fontSize: 26,
+    fontWeight: "900",
     color: "#FFF",
-    marginBottom: 4,
+    marginBottom: 8,
   },
   statusDesc: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.8)",
-    marginBottom: 12,
+    fontSize: 15,
+    color: "rgba(255,255,255,0.85)",
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 20,
   },
   bookingIdBadge: {
-    backgroundColor: "rgba(255,255,255,0.2)",
     paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingVertical: 8,
+    borderRadius: 10,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.4)",
   },
   bookingIdText: {
-    fontSize: 13,
-    fontWeight: "700",
     color: "#FFF",
+    fontSize: 14,
+    fontWeight: "800",
     letterSpacing: 1,
   },
 
@@ -2219,5 +2028,26 @@ const styles = StyleSheet.create({
 
   bottomSpacer: {
     height: 40,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 6,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ff4444',
+  },
+  liveText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });

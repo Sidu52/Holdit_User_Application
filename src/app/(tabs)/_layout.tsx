@@ -53,8 +53,8 @@ export default function TabsLayout() {
         tabBar={(props) => (user?.is_signup ? <CustomTabBar {...props} /> : null)}
       >
         <Tabs.Screen name="index" options={{ title: "Home" }} />
+        <Tabs.Screen name="explore" options={{ title: "Explore" }} />
         <Tabs.Screen name="schedule" options={{ title: "Schedule" }} />
-        <Tabs.Screen name="myLuggage" options={{ title: "My Luggage" }} />
       </Tabs>
       {!user?.is_signup && <SignupBottomSheet />}
     </View>

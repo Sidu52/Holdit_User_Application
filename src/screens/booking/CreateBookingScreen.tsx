@@ -18,9 +18,9 @@ import {
   ShieldCheck,
 } from "lucide-react-native";
 // import { useCreateBooking } from "@/features/booking/booking.queries";
-import { Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useUserLocation } from "@/hooks/useUserLocation";
+import { showError } from "@/utils/toast";
 
 // Configuration based on your HTML
 const PRICES = { small: 5, medium: 8, large: 12, other: 10 };
@@ -75,7 +75,7 @@ export default function BookingScreen() {
     const totalItems = Object.values(luggage).reduce((a, b) => a + b, 0);
 
     if (totalItems === 0) {
-      Alert.alert("Select luggage", "Please add at least one luggage item.");
+      showError("Please add at least one luggage item.", "Select luggage");
       return;
     }
 

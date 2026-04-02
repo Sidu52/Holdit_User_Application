@@ -21,6 +21,8 @@ export const TipsSafetySection: React.FC<Props> = ({
   title = "Tips & Safety",
   data,
 }) => {
+  const infiniteData = React.useMemo(() => [...data, ...data], [data]);
+
   const carouselRef = useAutoCarousel({
     dataLength: data.length,
     itemWidth: CARD_WIDTH + 16,
@@ -32,8 +34,8 @@ export const TipsSafetySection: React.FC<Props> = ({
 
       <FlatList
         ref={carouselRef}
-        data={data}
-        keyExtractor={(item) => item.id}
+        data={infiniteData}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.list}

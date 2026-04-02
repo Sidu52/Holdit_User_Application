@@ -59,6 +59,7 @@ export const bookingKeys = {
   list: (filters: Record<string, unknown>) =>
     [...bookingKeys.lists(), filters] as const,
   detail: (id: string) => [...bookingKeys.all, "detail", id] as const,
+  active: () => [...bookingKeys.all, "active"] as const,
 };
 
 // ============================================
@@ -72,6 +73,14 @@ export const useMyBookings = (params?: {
   return useQuery({
     queryKey: bookingKeys.list(params || {}),
     queryFn: () => bookingApi.getBookings(params),
+    staleTime: 60 * 1000, // 1 minute
+  });
+};
+
+export const useActiveBookingQuery = () => {
+  return useQuery({
+    queryKey: bookingKeys.active(),
+    queryFn: () => bookingApi.getActiveBooking(),
     staleTime: 60 * 1000, // 1 minute
   });
 };
