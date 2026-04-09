@@ -27,6 +27,7 @@ import Animated, {
   useAnimatedScrollHandler,
   Extrapolation,
   cancelAnimation,
+  withDelay,
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -96,7 +97,7 @@ const getStatusConfig = (
         color: "#2563eb",
         bgColor: "#dbeafe",
         icon: "checkmark-circle",
-        description: "Your booking is confirmed",
+        description: "Your booking is confirmed. We are currently verifying your details.",
       };
     case "store_assigned":
       return {
@@ -104,7 +105,7 @@ const getStatusConfig = (
         color: "#7c3aed",
         bgColor: "#ede9fe",
         icon: "business",
-        description: "Store has been assigned",
+        description: "Your items have a reserved space in our partner facility.",
       };
     case "driver_assigned":
     case "driver_arrived":
@@ -309,6 +310,11 @@ export default function BookingDetailScreen() {
     }
     return null;
   }, [booking?.timeline, booking?.status]);
+
+  const isFindingDriver = useMemo(() => {
+    const searchingStatuses = ["created", "confirmed", "store_assigned"];
+    return searchingStatuses.includes(booking?.status || "") && !booking?.driver;
+  }, [booking?.status, booking?.driver]);
 
   // ── Data Transformation ───────────────────────────────────────────
   const items = useMemo(() => {
@@ -656,30 +662,49 @@ export default function BookingDetailScreen() {
             <View style={styles.statusHeroContent}>
               {/* Pulsing Circle */}
               <View style={styles.statusIconWrapper}>
-                {isActive && (
-                  <Animated.View
-                    style={[
-                      styles.pulseCircle,
-                      { borderColor: "#FFF" },
-                      pulseStyle,
-                    ]}
-                  />
+                {isFindingDriver ? (
+                  <View style={styles.radarContainer}>
+                    <PulseCircle delay={0} size={150} color="#FFF" />
+                    <PulseCircle delay={800} size={150} color="#FFF" />
+                    <PulseCircle delay={1600} size={150} color="#FFF" />
+                    <View style={styles.statusIconCircle}>
+                      <Ionicons name="search" size={36} color="#FFF" />
+                    </View>
+                  </View>
+                ) : (
+                  <>
+                    {isActive && (
+                      <Animated.View
+                        style={[
+                          styles.pulseCircle,
+                          { borderColor: "#FFF" },
+                          pulseStyle,
+                        ]}
+                      />
+                    )}
+                    <View style={styles.statusIconCircle}>
+                      <Ionicons name={statusConfig.icon} size={36} color="#FFF" />
+                    </View>
+                  </>
                 )}
-                <View style={styles.statusIconCircle}>
-                  <Ionicons name={statusConfig.icon} size={36} color="#FFF" />
-                </View>
               </View>
 
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={styles.statusLabel}>{statusConfig.label}</Text>
-                {isSocketConnected && isActive && (
+                <Text style={styles.statusLabel}>
+                  {isFindingDriver ? "Searching for Driver" : statusConfig.label}
+                </Text>
+                {(isFindingDriver || (isSocketConnected && isActive)) && (
                   <View style={styles.liveBadge}>
                     <View style={styles.liveDot} />
                     <Text style={styles.liveText}>LIVE</Text>
                   </View>
                 )}
               </View>
-              <Text style={styles.statusDesc}>{statusConfig.description}</Text>
+              <Text style={styles.statusDesc}>
+                {isFindingDriver 
+                  ? "We're matching you with the best available driver partner near your location."
+                  : statusConfig.description}
+              </Text>
 
               <View style={styles.bookingIdBadge}>
                 <LinearGradient
@@ -1196,6 +1221,43 @@ export default function BookingDetailScreen() {
 }
 
 // ─── SUB COMPONENTS ───────────────────────────────────────────────────────────
+
+const PulseCircle = ({ delay = 0, size = 120, color = THEME.PRIMARY }: { delay?: number; size?: number; color?: string }) => {
+    const scale = useSharedValue(1);
+    const opacity = useSharedValue(0.6);
+
+    useEffect(() => {
+        scale.value = withDelay(
+            delay,
+            withRepeat(withTiming(2.2, { duration: 2500 }), -1, false)
+        );
+        opacity.value = withDelay(
+            delay,
+            withRepeat(
+                withSequence(
+                    withTiming(0, { duration: 2500 }),
+                    withTiming(0.6, { duration: 0 })
+                ),
+                -1,
+                false
+            )
+        );
+    }, [delay, scale, opacity]);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+        opacity: opacity.value,
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        position: "absolute",
+        backgroundColor: color,
+        borderWidth: 1,
+        borderColor: color,
+    }));
+
+    return <Animated.View style={animatedStyle} />;
+};
 
 const CountdownUnit = ({
   value,
@@ -2049,5 +2111,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  radarContainer: {
+    width: 90,
+    height: 90,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

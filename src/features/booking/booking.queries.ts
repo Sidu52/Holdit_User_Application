@@ -24,7 +24,6 @@ interface SchedulePickupPayload {
     lng: number;
     address?: string;
   };
-  pickupScheduledAt: string;
   luggage: {
     small?: number;
     medium?: number;
@@ -32,6 +31,8 @@ interface SchedulePickupPayload {
     other?: number;
   };
   notes?: string;
+  tipAmount?: number;
+  coupenCode?: string;
 }
 
 interface CancelBookingPayload {

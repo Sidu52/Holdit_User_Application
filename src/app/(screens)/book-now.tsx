@@ -6,119 +6,176 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   Modal,
   Dimensions,
+  Image,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { THEME } from "@/theme/theme";
 import { useProfile, useAddresses } from "@/features/user/user.queries";
-import { 
-  useSchedulePickup as useCreateBooking, 
-  useActiveBookingQuery 
+import {
+  useSchedulePickup as useCreateBooking,
+  useActiveBookingQuery
 } from "@/features/booking/booking.queries";
 import { LinearGradient } from "expo-linear-gradient";
 import { showError, showSuccess, showInfo } from "@/utils/toast";
 import Animated, {
   FadeInDown,
-  FadeInUp,
-  FadeInRight,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  withSequence,
-  withDelay,
 } from "react-native-reanimated";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/features/booking/bookingQueries";
+import { StatusBar } from "expo-status-bar";
 
 const { width } = Dimensions.get("window");
 
-// ── Date and Time helpers ───────────────────────────────────────────────────
-const generateDates = () => {
-  const dates = [];
-  const today = new Date();
-  for (let i = 0; i < 14; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    dates.push({
-      dateObj: d,
-      day: d.getDate(),
-      label:
-        i === 0
-          ? "Today"
-          : i === 1
-          ? "Tmrw"
-          : d.toLocaleDateString("en-US", { weekday: "short" }),
-      month: d.toLocaleDateString("en-US", { month: "short" }),
-    });
-  }
-  return dates;
-};
-
-const TIME_SLOTS = [
-  { time: "09:00 – 11:00", startHour: 9, icon: "sunny-outline" },
-  { time: "11:00 – 13:00", startHour: 11, icon: "partly-sunny-outline" },
-  { time: "13:00 – 15:00", startHour: 13, icon: "partly-sunny-outline" },
-  { time: "15:00 – 17:00", startHour: 15, icon: "cloud-outline" },
-  { time: "17:00 – 19:00", startHour: 17, icon: "moon-outline" },
-  { time: "19:00 – 21:00", startHour: 19, icon: "moon-outline" },
-];
-
 const LUGGAGE_TYPES = [
-  { id: "small", label: "Small", sub: "Handbags/Briefcase", icon: "bag-personal", color: "#22D3EE" },
-  { id: "medium", label: "Medium", sub: "Standard Cabin Bag", icon: "bag-suitcase-outline", color: "#818CF8" },
-  { id: "large", label: "Large", sub: "Check-in Suitcase", icon: "bag-suitcase", color: "#6366F1" },
-  { id: "other", label: "Other", sub: "Odd size items", icon: "bag-checked", color: "#F59E0B" },
+  {
+    id: "small",
+    label: "Small Bag",
+    sub: "Handbags/Briefcase",
+    price: 49,
+    oldPrice: 149,
+    emoji: "🎒",
+    color: "#FACC15",
+  },
+  {
+    id: "medium",
+    label: "Medium Bag",
+    sub: "Standard Cabin",
+    price: 99,
+    oldPrice: 199,
+    emoji: "💼",
+    color: "#3B82F6",
+  },
+  {
+    id: "large",
+    label: "Large Bag",
+    sub: "Check-in Suitcase",
+    price: 149,
+    oldPrice: 299,
+    emoji: "🧳",
+    color: "#EF4444",
+  },
+  {
+    id: "other",
+    label: "Other Item",
+    sub: "Odd size items",
+    price: 199,
+    oldPrice: 399,
+    emoji: "📦",
+    color: "#10B981",
+  },
 ];
 
-export default function ScheduleBookingScreen() {
+const AVAILABLE_COUPONS = [
+  {
+    id: "1",
+    code: "WELCOME50",
+    title: "Flat ₹50 OFF",
+    sub: "On your first storage booking",
+    type: "discount",
+  },
+  {
+    id: "2",
+    code: "HOLDIT10",
+    title: "10% Instant Discount",
+    sub: "Valid on bookings above ₹200",
+    type: "percent",
+  },
+  {
+    id: "3",
+    code: "AMZPAY50",
+    title: "Upto ₹50 Cashback",
+    sub: "Pay using Amazon Pay Wallet",
+    type: "payment",
+  },
+  {
+    id: "4",
+    code: "FREEBIE",
+    title: "Free Tamper-proof Seal",
+    sub: "Add security to your bags for free",
+    type: "service",
+  },
+];
+
+export default function BookNowScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const { data: user, isLoading: isUserLoading } = useProfile();
-  const { data: savedAddresses, isLoading: isAddressesLoading } = useAddresses();
-  const { data: activeBooking, isLoading: isActiveBookingLoading, refetch: refetchActive } = useActiveBookingQuery();
+
   const createBooking = useCreateBooking();
 
-  console.log("Active booking:", activeBooking);
-  
-  // ── States ────────────────────────────────────────────────────────────────
-  const dates = useMemo(() => generateDates(), []);
-  const [selectedDateObj, setSelectedDateObj] = useState<Date>(dates[0].dateObj);
-  const [selectedSlot, setSelectedSlot] = useState<number>(11);
-
+  // STATE
   const [luggage, setLuggage] = useState<Record<string, number>>({
     small: 0,
     medium: 0,
     large: 0,
     other: 0,
   });
+  const [activeTab, setActiveTab] = useState<"Tip" | "Instructions">("Tip");
+  const [tipAmount, setTipAmount] = useState<number>(0);
   const [notes, setNotes] = useState("");
-  const queryClient = useQueryClient();
-
-  // Address logic
-  const profileAddress = user?.location?.address || "";
-  const [customAddress, setCustomAddress] = useState("");
-  const [addressMode, setAddressMode] = useState<"profile" | "custom">("profile");
+  const [couponCode, setCouponCode] = useState("");
   const [showAddressModal, setShowAddressModal] = useState(false);
-  const [addressInput, setAddressInput] = useState("");
+  const [addressMode, setAddressMode] = useState<"profile" | "custom">("profile");
+  const [customAddress, setCustomAddress] = useState("");
+  const [isBagSelected, setIsBagSelected] = useState(true);
 
-  const activePickupAddress =
-    addressMode === "custom" && customAddress ? customAddress : profileAddress;
+  // Edit User Bottom Sheet
+  const [showEditUser, setShowEditUser] = useState(false);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  // Override display names if user edited them locally
+  const [localFirstName, setLocalFirstName] = useState<string | null>(null);
+  const [localLastName, setLocalLastName] = useState<string | null>(null);
+  const [localPhone, setLocalPhone] = useState<string | null>(null);
 
-  const isToday =
-    selectedDateObj.getDate() === new Date().getDate() &&
-    selectedDateObj.getMonth() === new Date().getMonth();
-  const currentHour = new Date().getHours();
+  // Coupons Modal
+  const [showAllCoupons, setShowAllCoupons] = useState(false);
+  const [typedCoupon, setTypedCoupon] = useState("");
 
+  const toggleCoupon = (code: string) => {
+    if (couponCode === code) {
+      setCouponCode("");
+      showInfo("Coupon removed");
+    } else {
+      setCouponCode(code);
+      showSuccess(`Coupon ${code} applied!`);
+    }
+  };
+
+  const openEditUser = () => {
+    setEditFirstName(localFirstName ?? user?.first_name ?? "");
+    setEditLastName(localLastName ?? user?.last_name ?? "");
+    setEditPhone(localPhone ?? user?.phone ?? "");
+    setShowEditUser(true);
+  };
+
+  const saveEditUser = () => {
+    setLocalFirstName(editFirstName.trim() || null);
+    setLocalLastName(editLastName.trim() || null);
+    setLocalPhone(editPhone.trim() || null);
+    setShowEditUser(false);
+  };
+
+  // Resolved display values
+  const displayFirstName = localFirstName ?? user?.first_name ?? "";
+  const displayLastName = localLastName ?? user?.last_name ?? "";
+  const displayPhone = localPhone ?? user?.phone ?? "";
+
+  // COMPUTED
   const totalItems = Object.values(luggage).reduce((a, b) => a + b, 0);
+  const subtotal = LUGGAGE_TYPES.reduce((acc, item) => acc + (luggage[item.id] * item.price), 0);
+  const totalSavings = LUGGAGE_TYPES.reduce((acc, item) => acc + (luggage[item.id] * (item.oldPrice - item.price)), 0);
+  const totalToPay = subtotal + tipAmount;
+  const displayAddress = addressMode === "custom" ? customAddress : (user?.location?.address || "Set your address");
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // HANDLERS
   const handleLuggageChange = (id: string, delta: number) => {
     setLuggage((prev) => ({
       ...prev,
@@ -126,794 +183,1263 @@ export default function ScheduleBookingScreen() {
     }));
   };
 
-  const handleOpenAddressModal = () => {
-    setAddressInput(customAddress || "");
-    setShowAddressModal(true);
-  };
-
-  const handleSaveAddress = () => {
-    const trimmed = addressInput.trim();
-    if (!trimmed) {
-      showError("Please enter or select a valid address.", "Address Required");
+  const handleConfirm = (method: "cash" | "online") => {
+    console.log("------------------------method", method);
+    if (totalItems === 0) {
+      showError("Please add at least one luggage item.", "No Items Selected");
       return;
     }
-    setCustomAddress(trimmed);
-    setAddressMode("custom");
-    setShowAddressModal(false);
-  };
-
-  const handleSelectFromSaved = (address: string) => {
-    setCustomAddress(address);
-    setAddressMode("custom");
-    setShowAddressModal(false);
-  };
-
-  const handleUseProfile = () => {
-    if (!profileAddress) {
-      showError("Please add a default address in your profile settings.", "No Address Found");
+    if (!displayAddress || displayAddress === "Set your address") {
+      showError("Please provide a pickup address.", "Address Required");
       return;
     }
-    setAddressMode("profile");
-    setCustomAddress("");
-    setShowAddressModal(false);
-  };
-  
-const getScheduledDateTime = (): Date => {
-  const date = new Date(selectedDateObj);
-  // Zero out time, then apply the selected slot hour
-  date.setHours(selectedSlot, 0, 0, 0);
-  return date;
-};
 
-const handleConfirm = () => {
-  if (totalItems === 0) {
-    showError("Please add at least one luggage item.", "No Items Selected");
-    return;
-  }
-  if (!activePickupAddress) {
-    showError("Please provide a pickup address.", "Address Required");
-    return;
-  }
+    const payload: any = {
+      pickupLocation: {
+        lat: user?.location?.coordinates[1] || 0,
+        lng: user?.location?.coordinates[0] || 0,
+        address: displayAddress,
+      },
+      luggage,
+    };
 
-  const scheduledAt = getScheduledDateTime();
-  const now = new Date();
+    if (notes.trim()) payload.notes = notes.trim();
+    if (tipAmount > 0) payload.tipAmount = tipAmount;
+    if (couponCode.trim()) payload.coupenCode = couponCode.trim();
 
-  // Guard: slot must be in the future
-  if (scheduledAt <= now) {
-    showError("The selected time slot has already passed. Please choose a future time slot.", "Invalid Time");
-    return;
-  }
-
-  const bookingPayload = {
-    pickupLocation: {
-      lat: user?.location?.coordinates[1] || 0,
-      lng: user?.location?.coordinates[0] || 0,
-      address: activePickupAddress,
-    },
-    pickupScheduledAt: scheduledAt.toISOString(), // ✅ now includes the actual slot hour
-    luggage,
-    notes: notes.trim(),
+    console.log("------------------------payload", payload);
+    createBooking.mutate(payload, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.activeBooking });
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bookings });
+        showSuccess("Booking scheduled successfully!");
+        router.replace("/(tabs)/schedule");
+      },
+      onError: (err: any) => {
+        showError(err?.message || "Failed to schedule pickup.");
+      },
+    });
   };
 
-  createBooking.mutate(bookingPayload, {
-    onSuccess: () => {
-      // Invalidate queries to ensure Schedule tab is fresh
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bookings });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.activeBooking });
-      
-      // Redirect to Schedule tab immediately
-      router.replace("/(tabs)/schedule");
-    },
-    onError: (err: any) => {
-      const status = err?.status ?? err?.response?.status;
-      const message: string = err?.message ?? "";
-
-      if (status === 409) {
-        const isCapacity = message.toLowerCase().includes("capacity");
-
-        if (isCapacity) {
-          showError("All nearby stores are currently at full capacity. Please try again later.", "Full Capacity");
-        } else {
-          showError("You already have an active booking. Please manage or complete it first.", "Active Booking Found");
-          refetchActive();
-        }
-      } else if (status === 400) {
-        showError("Pickup time may have expired. Please re-select your time slot and try again.", "Expired Slot");
-      } else {
-        showError(message || "Failed to schedule pickup. Please try again.");
-      }
-    },
-  });
-};
-  // ── LOADING STATE ─────────────────────────────────────────────────────────
-  const isLoading = isUserLoading || isAddressesLoading || isActiveBookingLoading;
-
-  if (isLoading) {
+  if (isUserLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={THEME.PRIMARY} />
-        <Text style={styles.loadingText}>Setting everything up...</Text>
+      <View style={styles.center}>
+        <ActivityIndicator color={THEME.PRIMARY} />
       </View>
-    );
-  }
-
-  // ── ACTIVE BOOKING CHECK ──────────────────────────────────────────────────
-  if (activeBooking?.bookings && activeBooking.bookings.length > 0) {
-    const latestBooking = activeBooking.bookings[0];
-    const bid = (latestBooking as any)._id || (latestBooking as any).id;
-    return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={THEME.TEXT_DARK} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Schedule Pickup</Text>
-          <View style={{ width: 44 }} />
-        </View>
-
-        <View style={styles.activeBookingOverlay}>
-          <Animated.View entering={FadeInDown} style={styles.activeBookingCard}>
-            <LinearGradient
-               colors={["#F59E0B", "#D97706"]}
-               style={styles.activeIconCircle}
-            >
-              <MaterialCommunityIcons name="alert-circle-outline" size={50} color="#FFF" />
-            </LinearGradient>
-            <Text style={styles.activeTitle}>Active Booking Found</Text>
-            <Text style={styles.activeSubtitle}>
-              You already have a booking in progress. You can only have one active booking at a time to ensure the best service.
-            </Text>
-            
-            <TouchableOpacity 
-              style={styles.viewActiveBtn}
-              onPress={() => bid && router.push(`/booking/${bid}`)}
-            >
-              <LinearGradient
-                colors={[THEME.PRIMARY, THEME.SECONDARY]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.viewActiveGradient}
-              >
-                <Text style={styles.viewActiveText}>Manage Active Booking</Text>
-                <Ionicons name="arrow-forward" size={18} color="#FFF" />
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
-              <Text style={styles.cancelBtnText}>Back to Dashboard</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
-      </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* ── HEADER ────────────────────────────────────────────────────── */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={THEME.TEXT_DARK} />
-        </TouchableOpacity>
-        <View style={{ alignItems: "center" }}>
-          <Text style={styles.headerTitle}>Schedule Pickup</Text>
-          <Text style={styles.headerSub}>Date, Time & Items</Text>
+    <View style={styles.container}>
+      <StatusBar style="dark" />
+
+      {/* 1. Header (Compact Location Bar) */}
+      <SafeAreaView edges={["top"]} style={styles.header}>
+        <View style={styles.headerContent}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={24} color={THEME.TEXT_DARK} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.locationBar} onPress={() => setShowAddressModal(true)}>
+            <View>
+              <View style={styles.locationRow}>
+                <Text style={styles.locationTitle}>Home</Text>
+                <Ionicons name="chevron-down" size={14} color={THEME.TEXT_DARK} />
+              </View>
+              <Text style={styles.locationValue} numberOfLines={1}>{displayAddress}</Text>
+            </View>
+          </TouchableOpacity>
         </View>
-        <View style={{ width: 40 }} />
-      </View>
+      </SafeAreaView>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {/* ── SECTION: ADDRESS ────────────────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(100).springify()}>
-            <SectionLabel icon="location" label="Pickup Location" />
-            <TouchableOpacity
-              style={[
-                styles.addressCard,
-                addressMode === "custom" && styles.addressCardCustom,
-              ]}
-              onPress={handleOpenAddressModal}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.addressIconWrap, { backgroundColor: addressMode === "custom" ? `${THEME.PRIMARY}15` : "#F1F5F9" }]}>
-                <Ionicons
-                  name={addressMode === "custom" ? "location" : "home"}
-                  size={22}
-                  color={THEME.PRIMARY}
-                />
-              </View>
-              <View style={styles.addressTextWrap}>
-                <Text style={styles.addressMode}>
-                   {addressMode === "profile" ? "Using default account address" : "Using custom pickup location"}
-                </Text>
-                <Text style={styles.addressValue} numberOfLines={1}>
-                  {activePickupAddress || "Select a pickup location"}
-                </Text>
-              </View>
-              <View style={styles.changeAddressBtn}>
-                <Ionicons name="pencil" size={14} color={THEME.PRIMARY} />
-                <Text style={styles.changeAddressBtnText}>Change</Text>
-              </View>
-            </TouchableOpacity>
-          </Animated.View>
-
-          {/* ── SECTION: DATE ────────────────────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(200).springify()}>
-            <SectionLabel icon="calendar-clear-outline" label="Pickup Date" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.dateScroller}
-            >
-              {dates.map((item, index) => {
-                const isSelected =
-                  selectedDateObj.getDate() === item.dateObj.getDate() &&
-                  selectedDateObj.getMonth() === item.dateObj.getMonth();
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    onPress={() => setSelectedDateObj(item.dateObj)}
-                    style={[styles.dateCard, isSelected && styles.dateCardActive]}
-                  >
-                    {isSelected && (
-                      <LinearGradient
-                        colors={[THEME.PRIMARY, THEME.SECONDARY]}
-                        style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
-                      />
-                    )}
-                    <Text style={[styles.dateLabel, isSelected && styles.textWhite]}>
-                      {item.label}
-                    </Text>
-                    <Text style={[styles.dateDay, isSelected && styles.textWhite]}>
-                      {item.day}
-                    </Text>
-                    <Text style={[styles.dateMonth, isSelected && styles.textWhite]}>
-                      {item.month}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </Animated.View>
-
-          {/* ── SECTION: TIME ────────────────────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(300).springify()}>
-            <SectionLabel icon="time-outline" label="Pickup Preferred Time" />
-            <View style={styles.timeGrid}>
-              {TIME_SLOTS.map((slot) => {
-                const disabled = isToday && currentHour + 1 >= slot.startHour;
-                const isSelected = selectedSlot === slot.startHour;
-                return (
-                  <TouchableOpacity
-                    key={slot.time}
-                    disabled={disabled}
-                    onPress={() => setSelectedSlot(slot.startHour)}
-                    style={[
-                      styles.timeChip,
-                      isSelected && styles.timeChipActive,
-                      disabled && styles.timeChipDisabled,
-                    ]}
-                    accessibilityLabel={`Time slot ${slot.time}${disabled ? ", unavailable" : ""}`}
-                  >
-                    {isSelected && (
-                      <LinearGradient
-                        colors={[THEME.PRIMARY, THEME.SECONDARY]}
-                        style={[StyleSheet.absoluteFill, { borderRadius: 14 }]}
-                      />
-                    )}
-                    <Ionicons
-                      name={slot.icon as any}
-                      size={14}
-                      color={isSelected ? "#FFF" : disabled ? "#CBD5E1" : THEME.TEXT_MUTED}
-                    />
-                    <Text
-                      style={[
-                        styles.timeChipText,
-                        isSelected && styles.textWhite,
-                        disabled && styles.timeChipTextDisabled,
-                      ]}
-                    >
-                      {slot.time}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* 4.5 Coupons & Offers Section */}
+        <View style={styles.couponSection}>
+          {totalSavings > 0 && (
+            <View style={styles.savingsBanner}>
+              <Text style={styles.savingsBannerText}>
+                Yay! You saved <Text style={{ fontWeight: "900" }}>₹{totalSavings}</Text> on this order <Ionicons name="chevron-down" size={12} color="#16A34A" />
+              </Text>
             </View>
-          </Animated.View>
-
-          {/* ── SECTION: ITEMS ───────────────────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(400).springify()}>
-            <SectionLabel icon="briefcase-outline" label="Luggage Selection" />
-            <View style={styles.luggageGrid}>
-              {LUGGAGE_TYPES.map((type, index) => (
-                <View key={type.id} style={styles.luggageItem}>
-                  <View style={[styles.luggageIconCard, { backgroundColor: `${type.color}15` }]}>
-                    <MaterialCommunityIcons name={type.icon as any} size={28} color={type.color} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.luggageLabel}>{type.label}</Text>
-                    <Text style={styles.luggageSub} numberOfLines={1}>{type.sub}</Text>
-                  </View>
-                  <View style={styles.stepper}>
-                    <TouchableOpacity
-                      style={styles.stepBtn}
-                      onPress={() => handleLuggageChange(type.id, -1)}
-                    >
-                      <Ionicons name="remove" size={18} color={THEME.TEXT_DARK} />
-                    </TouchableOpacity>
-                    <Text style={styles.stepValue}>{luggage[type.id]}</Text>
-                    <TouchableOpacity
-                      style={styles.stepBtn}
-                      onPress={() => handleLuggageChange(type.id, 1)}
-                    >
-                      <Ionicons name="add" size={18} color={THEME.TEXT_DARK} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
+          )}
+          <View style={styles.couponHeaderCard}>
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>NEW</Text>
             </View>
-          </Animated.View>
+            <Text style={styles.couponHeaderText}>Apply coupons + payment offers & save more</Text>
+          </View>
 
-          {/* ── SECTION: NOTES ───────────────────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(500).springify()}>
-            <SectionLabel icon="create-outline" label="Additional Notes" />
-            <View style={styles.notesContainer}>
-              <TextInput
-                style={styles.notesInput}
-                placeholder="E.g. Please call 15 mins before arrival..."
-                placeholderTextColor={THEME.TEXT_MUTED}
-                multiline
-                numberOfLines={3}
-                value={notes}
-                onChangeText={setNotes}
-                textAlignVertical="top"
-              />
-            </View>
-          </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          <View style={styles.couponBodyCard}>
+            <Text style={styles.couponTitle}>Coupons & offers</Text>
 
-      {/* ── SUMMARY STRIP ────────────────────────────────────────────── */}
-      {totalItems > 0 && (
-        <Animated.View entering={FadeInUp} exiting={FadeInDown} style={styles.summaryStrip}>
-           <View style={styles.selectionDot} />
-           <Text style={styles.summaryText}>
-             {totalItems} items selected for {selectedDateObj.getDate()} {selectedDateObj.toLocaleDateString('en-US', { month: 'short' })}
-           </Text>
-        </Animated.View>
-      )}
-
-      {/* ── FOOTER ───────────────────────────────────────────────────── */}
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-        <TouchableOpacity
-          style={styles.confirmBtnOuter}
-          onPress={handleConfirm}
-          disabled={createBooking.isPending}
-        >
-          <LinearGradient
-            colors={[THEME.PRIMARY, THEME.SECONDARY]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.confirmBtn}
-          >
-            {createBooking.isPending ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <>
-                <Text style={styles.confirmBtnText}>Schedule Pickup</Text>
-                <Ionicons name="arrow-forward" size={18} color="#FFF" />
-              </>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
-      {/* ── ENHANCED ADDRESS MODAL ───────────────────────────────────── */}
-      <Modal
-        visible={showAddressModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowAddressModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <Animated.View 
-            entering={FadeInUp.duration(300)} 
-            style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 24) }]}
-          >
-            <View style={styles.modalHandle} />
-
-            <Text style={styles.modalTitle}>Pickup Location</Text>
-            <Text style={styles.modalSubtitle}>Where should we collect your bags?</Text>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
-              {/* Default Profile Option */}
+            {/* Offer 1.1 */}
+            <View style={styles.couponRow}>
+              <View style={[styles.couponIconBox, { backgroundColor: "#F0FDF4" }]}>
+                <Ionicons name="pricetag" size={18} color="#16A34A" />
+              </View>
+              <View style={styles.couponInfo}>
+                <Text style={styles.couponRowTitle}>Save ₹50 with BONUSOFF50</Text>
+                <Text style={styles.couponRowSub}>Shop for ₹233 more to apply</Text>
+                <TouchableOpacity onPress={() => setShowAllCoupons(true)}>
+                  <Text style={styles.viewCouponsLink}>View all coupons <Ionicons name="chevron-forward" size={10} /></Text>
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity
-                style={[
-                  styles.modalOption,
-                  addressMode === "profile" && styles.modalOptionActive,
-                ]}
-                onPress={handleUseProfile}
+                style={styles.lockedBtn}
+                onPress={() => showInfo("Add more items to unlock this coupon!")}
               >
-                <View style={[styles.modalOptionIcon, addressMode === "profile" && { backgroundColor: "rgba(255,255,255,0.2)" }]}>
-                  <Ionicons name="home" size={22} color={addressMode === "profile" ? "#FFF" : THEME.PRIMARY} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.modalOptionLabel, addressMode === "profile" && { color: "#FFF" }]}>
-                    Default Profile Address
-                  </Text>
-                  <Text style={[styles.modalOptionAddress, addressMode === "profile" && { color: "rgba(255,255,255,0.8)" }]} numberOfLines={1}>
-                    {profileAddress || "No address set in profile"}
-                  </Text>
-                </View>
-                {addressMode === "profile" && <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
+                <Text style={styles.lockedBtnText}>Locked</Text>
               </TouchableOpacity>
+            </View>
 
-              {/* Saved Addresses List */}
-              {savedAddresses && savedAddresses.length > 0 && (
-                <View style={{ marginBottom: 20 }}>
-                  <Text style={styles.miniLabel}>Saved in My Account</Text>
-                  {savedAddresses.map((addr) => (
+            <View style={styles.couponDivider} />
+
+            {/* Offer 2 */}
+            <View style={styles.couponRow}>
+              <View style={[styles.couponIconBox, { backgroundColor: "#1F2937" }]}>
+                <Text style={styles.payIconText}>pay</Text>
+              </View>
+              <View style={styles.couponInfo}>
+                <Text style={styles.couponRowTitle}>Upto ₹50 Cashback with Amazon Pay</Text>
+                <TouchableOpacity onPress={() => setShowAllCoupons(true)}>
+                  <Text style={styles.viewCouponsLink}>View all payment offers <Ionicons name="chevron-forward" size={10} /></Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={couponCode === "AMZPAY50" ? styles.removeBtn : styles.applyBtn}
+                onPress={() => toggleCoupon("AMZPAY50")}
+              >
+                <Text style={couponCode === "AMZPAY50" ? styles.removeBtnText : styles.applyBtnText}>
+                  {couponCode === "AMZPAY50" ? "Remove" : "Apply"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* 2. Selection Header */}
+        <View style={styles.selectionHeader}>
+          <Text style={styles.selectionTitle}>Select items to store</Text>
+          <Text style={styles.selectionSub}>Prices are per item / 24 hours</Text>
+        </View>
+
+        {/* 3. Luggage Selection (Simplified List style) */}
+        <View style={styles.section}>
+          <View style={styles.luggageList}>
+            {LUGGAGE_TYPES.map((item, idx) => (
+              <Animated.View key={item.id} entering={FadeInDown.delay(idx * 50).springify()} style={styles.luggageRow}>
+                <View style={styles.luggageIconBox}>
+                  <Text style={styles.luggageEmoji}>{item.emoji}</Text>
+                </View>
+
+                <View style={styles.luggageDetails}>
+                  <Text style={styles.luggageLabel}>{item.label}</Text>
+                  <Text style={styles.luggageSubText}>{item.sub}</Text>
+                  <Text style={styles.luggagePrice}>₹{item.price} / day</Text>
+                </View>
+
+                <View style={styles.stepper}>
+                  <TouchableOpacity
+                    style={[styles.stepperBtn, luggage[item.id] === 0 && styles.stepperDisabled]}
+                    onPress={() => handleLuggageChange(item.id, -1)}
+                    disabled={luggage[item.id] === 0}
+                  >
+                    <Ionicons name="remove" size={18} color={luggage[item.id] === 0 ? "#CBD5E1" : THEME.PRIMARY} />
+                  </TouchableOpacity>
+
+                  <Text style={styles.stepperValue}>{luggage[item.id]}</Text>
+
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => handleLuggageChange(item.id, 1)}
+                  >
+                    <Ionicons name="add" size={18} color={THEME.PRIMARY} />
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            ))}
+          </View>
+        </View>
+
+        {/* 4. Interactive Tabs (Give a Tip / Instructions) */}
+        <View style={styles.tabSection}>
+          <View style={styles.tabHeader}>
+            <TouchableOpacity
+              style={[styles.tabButton, activeTab === "Tip" && styles.activeTab]}
+              onPress={() => setActiveTab("Tip")}
+            >
+              <Text style={[styles.tabLabel, activeTab === "Tip" && styles.activeTabLabel]}>Give a Tip</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabButton, activeTab === "Instructions" && styles.activeTab]}
+              onPress={() => setActiveTab("Instructions")}
+            >
+              <Text style={[styles.tabLabel, activeTab === "Instructions" && styles.activeTabLabel]}>Pickup Instructions</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.tabContent}>
+            {activeTab === "Tip" ? (
+              <View style={styles.tipInner}>
+                <View style={styles.tipTextRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tipHeadline}>Tip Pickup Partner</Text>
+                    <Text style={styles.tipSubline}>Help them earn a little extra for their effort. 100% of this tip will go to them.</Text>
+                  </View>
+                  <Image
+                    source={{ uri: "https://cdn-icons-png.flaticon.com/512/2972/2972185.png" }}
+                    style={styles.driverImg}
+                  />
+                </View>
+
+                <View style={styles.tipAmountRow}>
+                  {[10, 35, 50].map((amt) => (
                     <TouchableOpacity
-                      key={addr._id}
-                      style={[
-                        styles.modalOption,
-                        customAddress === `${addr.street}, ${addr.city}` && styles.modalOptionActive,
-                      ]}
-                      onPress={() => handleSelectFromSaved(`${addr.street}, ${addr.city}`)}
+                      key={amt}
+                      style={[styles.tipChip, tipAmount === amt && styles.activeTipChip]}
+                      onPress={() => setTipAmount(amt)}
                     >
-                      <View style={[styles.modalOptionIcon, customAddress === `${addr.street}, ${addr.city}` && { backgroundColor: "rgba(255,255,255,0.2)" }]}>
-                        <Ionicons 
-                          name={addr.is_default ? 'home' : 'location'} 
-                          size={20} 
-                          color={customAddress === `${addr.street}, ${addr.city}` ? "#FFF" : THEME.PRIMARY} 
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.modalOptionLabel, customAddress === `${addr.street}, ${addr.city}` && { color: "#FFF" }]}>
-                          {addr.is_default ? "Default Address" : `${addr.street}`}
-                        </Text>
-                        <Text style={[styles.modalOptionAddress, customAddress === `${addr.street}, ${addr.city}` && { color: "rgba(255,255,255,0.8)" }]} numberOfLines={1}>
-                          {`${addr.street}, ${addr.city}`}
-                        </Text>
-                      </View>
-                      {customAddress === `${addr.street}, ${addr.city}` && <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
+                      <Text style={styles.tipChipEmoji}>{amt === 10 ? "☕" : amt === 35 ? "🥪" : "🍲"}</Text>
+                      <Text style={[styles.tipChipText, tipAmount === amt && styles.activeTipChipText]}>₹{amt}</Text>
                     </TouchableOpacity>
                   ))}
+                  <TouchableOpacity
+                    style={styles.tipChip}
+                    onPress={() => {
+                      // Toggle or custom logic
+                      showInfo("Enter custom tip in the instructions if needed", "Custom Tip");
+                    }}
+                  >
+                    <Text style={styles.tipChipEmoji}>🙏</Text>
+                    <Text style={styles.tipChipText}>Other</Text>
+                  </TouchableOpacity>
                 </View>
-              )}
-
-              {/* Add New Custom Input */}
-              <Text style={styles.miniLabel}>Or enter a new destination</Text>
-              <View style={styles.modalInputWrap}>
-                <Ionicons name="location-outline" size={20} color={THEME.PRIMARY} />
+              </View>
+            ) : (
+              <View style={styles.instructionInner}>
                 <TextInput
-                  style={styles.modalInput}
-                  placeholder="Street, City, Landmark..."
-                  placeholderTextColor={THEME.TEXT_MUTED}
-                  value={addressInput}
-                  onChangeText={(txt) => {
-                    setAddressInput(txt);
-                    // Clear customAddress state if user is typing manually to avoid conflict
-                    if (txt === "") setCustomAddress("");
-                  }}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSaveAddress}
+                  style={styles.instructionInput}
+                  placeholder="e.g., Leave at reception, call upon arrival..."
+                  multiline
+                  value={notes}
+                  onChangeText={(val) => setNotes(val)}
+                  placeholderTextColor={THEME.TEXT_DARK_SECONDARY}
                 />
               </View>
-            </ScrollView>
+            )}
+          </View>
+        </View>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => setShowAddressModal(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+
+        {/* 5. User Identity Card */}
+        <View style={styles.identityCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.identityLabel}>
+              Ordering for <Text style={styles.identityName}>{displayFirstName} {displayLastName}</Text>, {displayPhone}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={openEditUser}>
+            <Text style={styles.editText}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 6. GST Invoice Card (TEMP DISABLED) */}
+        {/* <TouchableOpacity style={styles.gstCard}>
+          <View style={styles.gstIconBox}>
+            <Ionicons name="document-text-outline" size={20} color={THEME.TEXT_DARK} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.gstTitle}>Get GST Invoice</Text>
+            <Text style={styles.gstSub}>Claim up to 28% with the GST Invoice</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={THEME.TEXT_DARK} />
+        </TouchableOpacity> */}
+
+        {/* 7. Security / Bag Toggle */}
+        <TouchableOpacity
+          style={styles.securityToggle}
+          activeOpacity={0.8}
+          onPress={() => setIsBagSelected(!isBagSelected)}
+        >
+          <Ionicons
+            name={isBagSelected ? "checkbox" : "square-outline"}
+            size={24}
+            color={isBagSelected ? THEME.PRIMARY : THEME.TEXT_DARK_SECONDARY}
+          />
+          <Text style={styles.securityText}>I need tamper-proof security seals (Eco-friendly) 🌱</Text>
+          <Ionicons name="chevron-forward" size={20} color={THEME.TEXT_DARK_SECONDARY} />
+        </TouchableOpacity>
+
+      </ScrollView>
+
+      {/* 8. Sticky Footer */}
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View style={styles.footerRow}>
+          <View style={styles.toPayBox}>
+            <Text style={styles.toPayLabel}>To Pay</Text>
+            <Text style={styles.toPayValue}>₹{totalToPay}</Text>
+          </View>
+
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={styles.fullWidthPayBtn}
+              onPress={() => handleConfirm("online")}
+              disabled={createBooking.isPending}
+            >
+              <LinearGradient colors={[THEME.PRIMARY, THEME.PRIMARY_LIGHT]} style={styles.primaryGradientFull}>
+                {createBooking.isPending ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={styles.payText}>Pay Online & Confirm</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* ADDRESS MODAL */}
+      <Modal visible={showAddressModal} transparent animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Delivery Location</Text>
+              <TouchableOpacity onPress={() => setShowAddressModal(false)}>
+                <Ionicons name="close" size={24} />
               </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.modalAddressItem}
+              onPress={() => { setAddressMode("profile"); setShowAddressModal(false); }}
+            >
+              <Ionicons name="home-outline" size={20} />
+              <Text style={styles.modalAddressText}>{user?.location?.address || "Profile Home"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
-              <TouchableOpacity
-                style={[styles.modalSaveBtn, !addressInput.trim() && { opacity: 0.5 }]}
-                onPress={handleSaveAddress}
-                disabled={!addressInput.trim()}
-              >
+      {/* EDIT USER BOTTOM SHEET */}
+      <Modal visible={showEditUser} transparent animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.editUserSheet}>
+            {/* Handle */}
+            <View style={styles.sheetHandle} />
+
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Update Details</Text>
+                <Text style={styles.editUserSubtitle}>Used for booking confirmation</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowEditUser(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={20} color={THEME.TEXT_DARK} />
+              </TouchableOpacity>
+            </View>
+
+            {/* First Name */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>First Name</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="person-outline" size={16} color={THEME.TEXT_DARK_SECONDARY} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.editInput}
+                  value={editFirstName}
+                  onChangeText={setEditFirstName}
+                  placeholder="Enter first name"
+                  placeholderTextColor={THEME.TEXT_DARK_SECONDARY}
+                  autoCapitalize="words"
+                />
+              </View>
+            </View>
+
+            {/* Last Name */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Last Name</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="person-outline" size={16} color={THEME.TEXT_DARK_SECONDARY} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.editInput}
+                  value={editLastName}
+                  onChangeText={setEditLastName}
+                  placeholder="Enter last name"
+                  placeholderTextColor={THEME.TEXT_DARK_SECONDARY}
+                  autoCapitalize="words"
+                />
+              </View>
+            </View>
+
+            {/* Phone */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Phone Number</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="call-outline" size={16} color={THEME.TEXT_DARK_SECONDARY} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.editInput}
+                  value={editPhone}
+                  onChangeText={setEditPhone}
+                  placeholder="Enter phone number"
+                  placeholderTextColor={THEME.TEXT_DARK_SECONDARY}
+                  keyboardType="phone-pad"
+                />
+              </View>
+            </View>
+
+            {/* Actions */}
+            <View style={styles.editUserActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowEditUser(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={saveEditUser}>
                 <LinearGradient
-                  colors={[THEME.PRIMARY, THEME.SECONDARY]}
+                  colors={[THEME.PRIMARY, THEME.PRIMARY_LIGHT]}
+                  style={styles.saveBtnGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={[styles.modalSaveBtnInner, { borderRadius: 16 }]}
                 >
-                  <Text style={styles.modalSaveText}>Use This Address</Text>
+                  <Ionicons name="checkmark" size={16} color="#FFF" />
+                  <Text style={styles.saveBtnText}>Save Details</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
-          </Animated.View>
+          </View>
         </View>
       </Modal>
-    </SafeAreaView>
+
+      {/* ALL COUPONS MODAL */}
+      <Modal visible={showAllCoupons} transparent animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.allCouponsSheet}>
+            <View style={styles.sheetHandle} />
+
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>All Offers</Text>
+              <TouchableOpacity onPress={() => setShowAllCoupons(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={20} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Manual Entry */}
+            <View style={styles.couponInputRow}>
+              <TextInput
+                style={styles.manualCouponInput}
+                placeholder="Enter coupon code"
+                value={typedCoupon}
+                onChangeText={setTypedCoupon}
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity
+                style={styles.manualApplyBtn}
+                onPress={() => {
+                  if (typedCoupon.trim()) {
+                    toggleCoupon(typedCoupon.trim().toUpperCase());
+                    setTypedCoupon("");
+                  }
+                }}
+              >
+                <Text style={styles.manualApplyText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.couponsListScroll}>
+              {AVAILABLE_COUPONS.map((cp) => (
+                <View key={cp.id} style={styles.couponListItem}>
+                  <View style={[styles.listItemIcon, {
+                    backgroundColor: cp.type === "discount" ? "#F0FDF4" :
+                      cp.type === "payment" ? "#1F2937" : "#EFF6FF"
+                  }]}>
+                    {cp.type === "payment" ? (
+                      <Text style={styles.payIconTextSmall}>pay</Text>
+                    ) : (
+                      <Ionicons
+                        name={cp.type === "discount" ? "pricetag" : "gift"}
+                        size={16}
+                        color={cp.type === "discount" ? "#16A34A" : THEME.PRIMARY}
+                      />
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cpListTitle}>{cp.title}</Text>
+                    <Text style={styles.cpListSub}>{cp.sub}</Text>
+                    <Text style={styles.cpListCode}>{cp.code}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={couponCode === cp.code ? styles.removeBtnList : styles.applyBtnList}
+                    onPress={() => toggleCoupon(cp.code)}
+                  >
+                    <Text style={couponCode === cp.code ? styles.removeBtnTextList : styles.applyBtnTextList}>
+                      {couponCode === cp.code ? "Remove" : "Apply"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
-// ── Sub-components ──────────────────────────────────────────────────────────
-
-const SectionLabel = ({
-  icon,
-  label,
-}: {
-  icon: React.ComponentProps<typeof Ionicons>["name"];
-  label: string;
-}) => (
-  <View style={sectionLabelStyles.row}>
-    <Ionicons name={icon} size={18} color={THEME.PRIMARY} />
-    <Text style={sectionLabelStyles.text}>{label}</Text>
-  </View>
-);
-
-const sectionLabelStyles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 28, marginBottom: 14 },
-  text: { fontSize: 16, fontWeight: "800", color: THEME.TEXT_DARK },
-});
-
-// ── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: THEME.BACKGROUND_LIGHT },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: THEME.BACKGROUND_LIGHT },
-  loadingText: { marginTop: 12, fontSize: 15, color: THEME.TEXT_MUTED, fontWeight: "600" },
-
-  header: {
-    flexDirection: "row",
+  container: {
+    flex: 1,
+    backgroundColor: "#F8F9FA",
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
+  },
+  // Header
+  header: {
     backgroundColor: "#FFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: THEME.BORDER_LIGHT,
   },
-  backBtn: {
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
+    backgroundColor: "#F8F9FA",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    alignItems: "center",
   },
-  headerTitle: { fontSize: 18, fontWeight: "800", color: THEME.TEXT_DARK },
-  headerSub: { fontSize: 12, color: THEME.TEXT_MUTED },
-
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 160 },
-
-  // Address
-  addressCard: {
+  locationBar: {
+    flex: 1,
+    marginHorizontal: 16,
+  },
+  locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF",
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    gap: 4,
+  },
+  locationTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: THEME.TEXT_DARK,
+  },
+  locationValue: {
+    fontSize: 12,
+    color: THEME.TEXT_DARK_SECONDARY,
+    marginTop: 2,
+  },
+  favButton: {
+    padding: 8,
+  },
+  // Scroll Content
+  scrollContent: {
+    paddingBottom: 150,
+  },
+  // Sections
+  section: {
+    marginTop: 10,
+  },
+  selectionHeader: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  selectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: THEME.TEXT_DARK,
+  },
+  selectionSub: {
+    fontSize: 12,
+    color: THEME.TEXT_DARK_SECONDARY,
+    marginTop: 4,
+  },
+  luggageList: {
+    paddingHorizontal: 20,
     gap: 12,
   },
-  addressCardCustom: { borderColor: THEME.PRIMARY, borderWidth: 1.5 },
-  addressIconWrap: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  addressTextWrap: { flex: 1 },
-  addressMode: { fontSize: 11, fontWeight: "600", color: THEME.TEXT_MUTED, textTransform: "uppercase" },
-  addressValue: { fontSize: 14, fontWeight: "800", color: THEME.TEXT_DARK, marginTop: 4 },
-  changeAddressBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: `${THEME.PRIMARY}10`, padding: 8, borderRadius: 8 },
-  changeAddressBtnText: { fontSize: 12, fontWeight: "700", color: THEME.PRIMARY },
-
-  // Date
-  dateScroller: { gap: 10 },
-  dateCard: {
-    width: 72,
-    height: 90,
-    backgroundColor: "#FFF",
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    overflow: "hidden",
-  },
-  dateCardActive: { borderColor: THEME.PRIMARY },
-  dateLabel: { fontSize: 11, fontWeight: "700", color: THEME.TEXT_MUTED, textTransform: "uppercase" },
-  dateDay: { fontSize: 26, fontWeight: "900", color: THEME.TEXT_DARK, marginVertical: 2 },
-  dateMonth: { fontSize: 11, fontWeight: "600", color: THEME.TEXT_MUTED },
-  textWhite: { color: "#FFF" },
-
-  // Time
-  timeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  timeChip: {
-    width: "48%",
-    paddingVertical: 15,
-    backgroundColor: "#FFF",
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    overflow: "hidden",
-  },
-  timeChipActive: { borderColor: THEME.PRIMARY },
-  timeChipDisabled: { backgroundColor: "#F8FAFC", opacity: 0.5 },
-  timeChipText: { fontSize: 13, fontWeight: "700", color: THEME.TEXT_DARK },
-  timeChipTextDisabled: { textDecorationLine: "line-through", color: "#94A3B8" },
-
-  // Luggage
-  luggageGrid: { gap: 12 },
-  luggageItem: {
+  luggageRow: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 14,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
-  },
-  luggageIconCard: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  luggageLabel: { fontSize: 15, fontWeight: "800", color: THEME.TEXT_DARK },
-  luggageSub: { fontSize: 12, color: THEME.TEXT_MUTED, marginTop: 2 },
-  stepper: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 12, padding: 4 },
-  stepBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: "#FFF", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#F1F5F9" },
-  stepValue: { paddingHorizontal: 12, fontSize: 16, fontWeight: "800", color: THEME.TEXT_DARK, minWidth: 40, textAlign: "center" },
-
-  // Notes
-  notesContainer: {
-    backgroundColor: "#FFF",
-    borderRadius: 20,
     padding: 16,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#F1F5F9",
+    borderColor: THEME.BORDER_LIGHT,
   },
-  notesInput: {
-    height: 100,
+  luggageIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  luggageEmoji: {
+    fontSize: 24,
+  },
+  luggageDetails: {
+    flex: 1,
+  },
+  luggageLabel: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: THEME.TEXT_DARK,
+  },
+  luggageSubText: {
+    fontSize: 11,
+    color: THEME.TEXT_DARK_SECONDARY,
+    marginTop: 2,
+  },
+  luggagePrice: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: THEME.PRIMARY,
+    marginTop: 4,
+  },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#F8F9FA",
+    padding: 6,
+    borderRadius: 15,
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#FFF",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: THEME.BORDER_LIGHT,
+  },
+  stepperDisabled: {
+    opacity: 0.5,
+  },
+  stepperValue: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: THEME.TEXT_DARK,
+    minWidth: 20,
+    textAlign: "center",
+  },
+  // Tab Section
+  tabSection: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    backgroundColor: THEME.TRANSPARENT_PRIMARY,
+    borderRadius: 24,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: THEME.TRANSPARENT_SECONDARY,
+  },
+  tabHeader: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.5)",
+    padding: 6,
+    borderRadius: 24,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 20,
+  },
+  activeTab: {
+    backgroundColor: "#FFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  activeTabLabel: {
+    color: THEME.TEXT_DARK,
+    fontWeight: "800",
+  },
+  tabContent: {
+    padding: 20,
+  },
+  tipInner: {
+  },
+  tipTextRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  tipHeadline: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: THEME.TEXT_DARK,
+  },
+  tipSubline: {
+    fontSize: 12,
+    color: THEME.TEXT_DARK_SECONDARY,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  safetyLink: {
+    fontSize: 12,
+    color: "#6B7280",
+    textDecorationLine: "underline",
+    marginTop: 8,
+  },
+  driverImg: {
+    width: 60,
+    height: 60,
+    resizeMode: "contain",
+  },
+  tipAmountRow: {
+    flexDirection: "row",
+    marginTop: 16,
+    gap: 12,
+  },
+  tipChip: {
+    flex: 1,
+    backgroundColor: "#FFF",
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: THEME.BORDER_LIGHT,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 4,
+  },
+  activeTipChip: {
+    borderColor: THEME.PRIMARY,
+    backgroundColor: THEME.TRANSPARENT_PRIMARY,
+  },
+  tipChipEmoji: {
+    fontSize: 12,
+  },
+  tipChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: THEME.TEXT_DARK,
+  },
+  activeTipChipText: {
+    color: THEME.PRIMARY,
+  },
+  instructionInner: {
+    minHeight: 100,
+  },
+  instructionInput: {
     fontSize: 14,
     color: THEME.TEXT_DARK,
+  },
+  // Identity Card
+  identityCard: {
+    flexDirection: "row",
+    backgroundColor: "#FFF",
+    marginHorizontal: 20,
+    marginTop: 20,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: THEME.BORDER_LIGHT,
+    alignItems: "center",
+  },
+  identityLabel: {
+    fontSize: 14,
+    color: THEME.TEXT_DARK,
+  },
+  identityName: {
+    fontWeight: "800",
+    color: THEME.TEXT_DARK,
+  },
+  editText: {
+    color: THEME.PRIMARY,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  // Savings Banner
+  savingsBanner: {
+    backgroundColor: "#DCFCE7",
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  savingsBannerText: {
+    fontSize: 13,
+    color: "#16A34A",
     fontWeight: "600",
   },
-
-  // Summary
-  summaryStrip: {
-    position: "absolute",
-    bottom: 120,
-    alignSelf: "center",
-    backgroundColor: "#1E293B",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 30,
+  // Coupon Section
+  couponSection: {
+    marginHorizontal: 20,
+    marginTop: 20,
+  },
+  couponHeaderCard: {
+    backgroundColor: "#EFF6FF",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     flexDirection: "row",
     alignItems: "center",
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    borderBottomWidth: 0,
     gap: 10,
-    ...Platform.select({ ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }, android: { elevation: 8 } }),
   },
-  selectionDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: THEME.PRIMARY },
-  summaryText: { color: "#FFF", fontSize: 14, fontWeight: "700" },
-
+  newBadge: {
+    backgroundColor: THEME.PRIMARY,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  newBadgeText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  couponHeaderText: {
+    fontSize: 12,
+    color: "#437b66ff",
+    fontWeight: "700",
+    flex: 1,
+  },
+  couponBodyCard: {
+    backgroundColor: "#FFF",
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: THEME.BORDER_LIGHT,
+  },
+  couponTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: THEME.TEXT_DARK,
+    marginBottom: 16,
+  },
+  couponRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  couponIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: THEME.BORDER_LIGHT,
+  },
+  payIconText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  couponInfo: {
+    flex: 1,
+  },
+  couponRowTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: THEME.TEXT_DARK,
+  },
+  couponRowSub: {
+    fontSize: 11,
+    color: "#D97706",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  viewCouponsLink: {
+    fontSize: 12,
+    color: THEME.TEXT_DARK_SECONDARY,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  applyBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  applyBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#BE123C",
+  },
+  lockedBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+  },
+  lockedBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#9CA3AF",
+  },
+  removeBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
+  },
+  removeBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#DC2626",
+  },
+  couponDivider: {
+    height: 1,
+    backgroundColor: THEME.BORDER_LIGHT,
+    marginVertical: 16,
+    borderStyle: "dashed",
+    borderRadius: 1,
+  },
+  // All Coupons Sheet
+  allCouponsSheet: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    maxHeight: "85%",
+  },
+  couponInputRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 24,
+  },
+  manualCouponInput: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: THEME.BORDER_LIGHT,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 48,
+    fontSize: 14,
+    fontWeight: "600",
+    color: THEME.TEXT_DARK,
+  },
+  manualApplyBtn: {
+    backgroundColor: THEME.PRIMARY,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    justifyContent: "center",
+  },
+  manualApplyText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  couponsListScroll: {
+    marginTop: 8,
+  },
+  couponListItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    gap: 16,
+  },
+  listItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  payIconTextSmall: {
+    color: "#FFF",
+    fontSize: 9,
+    fontWeight: "900",
+  },
+  cpListTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: THEME.TEXT_DARK,
+  },
+  cpListSub: {
+    fontSize: 12,
+    color: THEME.TEXT_DARK_SECONDARY,
+    marginTop: 2,
+  },
+  cpListCode: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: THEME.PRIMARY,
+    backgroundColor: THEME.TRANSPARENT_PRIMARY,
+    alignSelf: "flex-start",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 6,
+  },
+  applyBtnList: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  applyBtnTextList: {
+    color: "#BE123C",
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  removeBtnList: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  removeBtnTextList: {
+    color: "#DC2626",
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  // Edit User Sheet
+  editUserSheet: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 99,
+    backgroundColor: "#E2E8F0",
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  editUserSubtitle: {
+    fontSize: 12,
+    color: THEME.TEXT_DARK_SECONDARY,
+    marginTop: 2,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  inputGroup: {
+    marginTop: 16,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: THEME.TEXT_DARK_SECONDARY,
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: THEME.BORDER_LIGHT,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 52,
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  editInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: THEME.TEXT_DARK,
+  },
+  editUserActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 28,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 15,
+    borderRadius: 14,
+    alignItems: "center",
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: THEME.BORDER_LIGHT,
+  },
+  cancelBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: THEME.TEXT_DARK_SECONDARY,
+  },
+  saveBtn: {
+    flex: 2,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  saveBtnGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 15,
+  },
+  saveBtnText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFF",
+  },
+  // GST Card
+  gstCard: {
+    flexDirection: "row",
+    backgroundColor: "#FFF",
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: THEME.BORDER_LIGHT,
+    alignItems: "center",
+    gap: 12,
+  },
+  gstIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#F8F9FA",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  gstTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: THEME.TEXT_DARK,
+  },
+  gstSub: {
+    fontSize: 11,
+    color: THEME.TEXT_DARK_SECONDARY,
+    marginTop: 2,
+  },
+  // Security Toggle
+  securityToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 20,
+    marginTop: 20,
+    backgroundColor: "#F0FDF4",
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#D1FAE5",
+    gap: 12,
+  },
+  securityText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#065F46",
+  },
   // Footer
   footer: {
     position: "absolute",
     bottom: 0,
-    width: "100%",
+    left: 0,
+    right: 0,
     backgroundColor: "#FFF",
     paddingHorizontal: 20,
     paddingTop: 16,
-    // paddingBottom is handled dynamically
     borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    borderTopColor: THEME.BORDER_LIGHT,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 10,
   },
-  confirmBtnOuter: { borderRadius: 18, overflow: "hidden" },
-  confirmBtn: { height: 62, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12 },
-  confirmBtnText: { color: "#FFF", fontSize: 17, fontWeight: "900" },
-
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalSheet: { backgroundColor: "#FFF", borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24 /* paddingBottom is handled dynamically */ },
-  modalHandle: { width: 40, height: 4, backgroundColor: "#E2E8F0", borderRadius: 2, alignSelf: "center", marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontWeight: "900", color: THEME.TEXT_DARK, marginBottom: 4 },
-  modalSubtitle: { fontSize: 14, color: THEME.TEXT_MUTED, marginBottom: 24 },
-  miniLabel: { fontSize: 11, fontWeight: "800", color: THEME.TEXT_MUTED, textTransform: "uppercase", marginBottom: 12, letterSpacing: 0.5 },
-  modalOption: {
+  footerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    borderRadius: 16,
-    padding: 16,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    marginBottom: 12,
+    justifyContent: "space-between",
   },
-  modalOptionActive: { backgroundColor: THEME.PRIMARY, borderColor: THEME.PRIMARY },
-  modalOptionIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.05)", alignItems: "center", justifyContent: "center" },
-  modalOptionLabel: { fontSize: 15, fontWeight: "700", color: THEME.TEXT_DARK },
-  modalOptionAddress: { fontSize: 12, color: THEME.TEXT_MUTED, marginTop: 2 },
-  modalInputWrap: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 16, borderWidth: 1.5, borderColor: "#E2E8F0", paddingHorizontal: 16, gap: 12, marginBottom: 24 },
-  modalInput: { flex: 1, height: 50, fontSize: 14, fontWeight: "600", color: THEME.TEXT_DARK },
-  modalActions: { flexDirection: "row", gap: 12, marginTop: 8 },
-  modalCancelBtn: { flex: 1, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
-  modalCancelText: { fontSize: 15, fontWeight: "700", color: THEME.TEXT_MUTED },
-  modalSaveBtn: { flex: 2, height: 56, borderRadius: 16, overflow: "hidden" },
-  modalSaveBtnInner: { flex: 1, alignItems: "center", justifyContent: "center" },
-  modalSaveText: { fontSize: 15, fontWeight: "800", color: "#FFF" },
-
-  // Active Booking Overlay
-  activeBookingOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    backgroundColor: "#F8FAFC",
+  toPayBox: {
   },
-  activeBookingCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 32,
-    padding: 32,
-    width: "100%",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.05, shadowRadius: 20 },
-      android: { elevation: 8 },
-    }),
+  toPayLabel: {
+    fontSize: 12,
+    color: THEME.TEXT_DARK_SECONDARY,
+    fontWeight: "600",
   },
-  activeIconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  activeTitle: {
-    fontSize: 24,
+  toPayValue: {
+    fontSize: 22,
     fontWeight: "900",
     color: THEME.TEXT_DARK,
-    marginBottom: 12,
-    textAlign: "center",
   },
-  activeSubtitle: {
-    fontSize: 15,
-    color: THEME.TEXT_MUTED,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 32,
-    paddingHorizontal: 10,
+  buttonRow: {
+    flex: 1,
+    marginLeft: 20,
+    paddingTop: 10,
+    paddingBottom: 15,
   },
-  viewActiveBtn: {
-    width: "100%",
-    borderRadius: 20,
+  fullWidthPayBtn: {
+    flex: 1,
+    borderRadius: 12,
     overflow: "hidden",
-    marginBottom: 16,
   },
-  viewActiveGradient: {
-    height: 60,
-    flexDirection: "row",
+  primaryGradientFull: {
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
   },
-  viewActiveText: {
-    color: "#FFF",
+  payText: {
     fontSize: 16,
     fontWeight: "800",
+    color: "#FFF",
   },
-  cancelBtn: {
-    padding: 12,
+  // Modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
-  cancelBtnText: {
-    color: THEME.TEXT_MUTED,
+  modalSheet: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: THEME.TEXT_DARK,
+  },
+  modalAddressItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: "#F8F9FA",
+    gap: 12,
+  },
+  modalAddressText: {
     fontSize: 14,
-    fontWeight: "700",
+    color: THEME.TEXT_DARK,
+    flex: 1,
   },
 });

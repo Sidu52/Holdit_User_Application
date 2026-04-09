@@ -3,7 +3,7 @@ import type { Socket } from "socket.io-client";
 import { Platform } from "react-native";
 
 // Derived from api.client.ts BASE_URL
-const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || "http://192.168.0.100:5000";
+const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || "https://holdit-backend-api.onrender.com";
 
 class SocketService {
   private socket: Socket | null = null;

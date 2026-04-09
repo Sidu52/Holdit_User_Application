@@ -39,13 +39,14 @@ const handleAuthFailure = async () => {
 };
 
 // AXIOS INSTANCE
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.100:5000/api/v1";
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || "https://holdit-backend-api.onrender.com/api/v1").replace(/\/+$/, "");
 
 export const api = axios.create({
   baseURL: API_URL,
   timeout: 15000,
   headers: {
     "Content-Type": "application/json",
+    "Accept": "application/json",
   },
 });
 
@@ -55,28 +56,44 @@ const refreshApi = axios.create({
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",
+    "Accept": "application/json",
   },
 });
 
 // REQUEST INTERCEPTOR
 api.interceptors.request.use(
   async (config) => {
-    
-    const accessToken = await tokenService.getAccessToken();
+    // Read token synchronously from Redux Store instead of async SecureStore
+    // which is more reliable for interceptors in production
+    const state = store.getState();
+    const accessToken = state.auth.accessToken;
 
-    if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
+    const fullUrl = `${config.baseURL || ""}${config.url || ""}`;
+    console.log(`REQUEST: ${config.method?.toUpperCase()} ${fullUrl}`);
+    console.log("=== API DEBUG ===");
+    console.log("Redux Token State:", accessToken ? "PRESENT" : "MISSING");
+    
+    if (accessToken && accessToken !== "null" && accessToken !== "undefined") {
+      config.headers.set("Authorization", `Bearer ${accessToken}`);
+      const masked = `${accessToken.substring(0, 10)}...${accessToken.slice(-4)}`;
+      console.log("Authorization Header Set: Bearer", masked);
+    } else {
+      console.log("Authorization Header: NOT SET (Token invalid or missing in Redux)");
+      // Diagnostic: Check SecureStore directly as well
+      tokenService.getAccessToken().then(token => {
+        console.log("Diagnostic SecureStore check:", token ? "Token exists in SecureStore" : "SecureStore is EMPTY");
+      });
     }
-console.log('REQUEST:', config.method?.toUpperCase(), `${config.baseURL || ''}${config.url || ''}`);
-console.log('=== API REQUEST ===');
-    console.log('URL:', `${config.baseURL || ''}${config.url || ''}`);
-    console.log('Method:', config.method?.toUpperCase());
-    console.log('Data:', JSON.stringify(config.data));
-    console.log('==================');
+
+    if (config.data) {
+      console.log("Data:", JSON.stringify(config.data));
+    }
+    console.log("==================");
     return config;
   },
   (error) => Promise.reject(error),
 );
+
 
 // RESPONSE INTERCEPTOR
 api.interceptors.response.use(
@@ -88,7 +105,7 @@ api.interceptors.response.use(
     console.log('Request made?', !!error.request);
     console.log('Got response?', !!error.response);
     console.log('Response status:', error.response?.status);
-    console.log('Response data:', error.response?.data);
+    console.log('Response data:', JSON.stringify(error.response?.data));
     console.log('=================');
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;

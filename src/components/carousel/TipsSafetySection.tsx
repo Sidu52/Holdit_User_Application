@@ -55,7 +55,7 @@ export const TipsSafetySection: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   section: {
-    marginTop: 16,
+    marginVertical: 16,
   },
 
   heading: {

@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { userEndpoints } from '../../api/endpoints/user';
 import { setProfile, setAddresses } from './userSlice';
+import { RootState } from '../../store';
 
 export const QUERY_KEYS = {
   profile: ['user', 'profile'],
@@ -13,6 +14,8 @@ export const QUERY_KEYS = {
 
 export const useProfile = () => {
   const dispatch = useDispatch();
+  const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
+
   return useQuery({
     queryKey: QUERY_KEYS.profile,
     queryFn: async () => {
@@ -23,6 +26,7 @@ export const useProfile = () => {
       }
       return profileData;
     },
+    enabled: isAuthenticated,
   });
 };
 

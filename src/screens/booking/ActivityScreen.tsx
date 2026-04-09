@@ -376,8 +376,8 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: THEME.TEXT_MUTED,
-    fontWeight: "600",
+    color: THEME.TEXT_DARK_SECONDARY,
+    fontWeight: "800",
   },
   
   // Header
@@ -400,8 +400,8 @@ const styles = StyleSheet.create({
   },
   greeting: {
     fontSize: 14,
-    color: THEME.TEXT_MUTED,
-    fontWeight: "600",
+    color: THEME.TEXT_DARK_SECONDARY,
+    fontWeight: "800",
     letterSpacing: 0.5,
   },
   headerTitle: {
@@ -464,8 +464,8 @@ const styles = StyleSheet.create({
   activeTab: {},
   tabText: {
     fontSize: 15,
-    fontWeight: "700",
-    color: THEME.TEXT_MUTED,
+    fontWeight: "800",
+    color: THEME.TEXT_DARK_SECONDARY,
   },
   activeTabText: {
     color: THEME.PRIMARY,
@@ -525,8 +525,8 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 11,
-    color: THEME.TEXT_MUTED,
-    fontWeight: "600",
+    color: THEME.TEXT_DARK_SECONDARY,
+    fontWeight: "800",
     textTransform: "uppercase",
   },
   statusBadge: {
@@ -581,8 +581,8 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 12,
-    color: THEME.TEXT_MUTED,
-    fontWeight: "600",
+    color: THEME.TEXT_DARK_SECONDARY,
+    fontWeight: "800",
   },
   footerDivider: {
     width: 1,
@@ -596,7 +596,7 @@ const styles = StyleSheet.create({
   },
   viewDetailText: {
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
     color: THEME.PRIMARY,
   },
   
@@ -617,13 +617,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: "900",
     color: THEME.TEXT_DARK,
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: THEME.TEXT_MUTED,
+    color: THEME.TEXT_DARK_SECONDARY,
     textAlign: "center",
     paddingHorizontal: 40,
     lineHeight: 20,
@@ -640,7 +640,7 @@ const styles = StyleSheet.create({
   emptyBtnText: {
     color: "#FFF",
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   
   // FAB

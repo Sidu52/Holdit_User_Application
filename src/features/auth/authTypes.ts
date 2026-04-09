@@ -29,6 +29,7 @@ export interface UserAddress {
   is_default: boolean;
   is_serviceable: boolean;
   coordinates: [number, number];
+  address_type?: string;
 }
 
 // User type used across the app
@@ -219,9 +220,10 @@ export interface BookingListResponse {
 
 export interface SchedulePickupPayload {
   pickupLocation: Location;
-  pickupScheduledAt: string;
   luggage: Luggage;
   notes?: string;
+  tipAmount?: number;
+  coupenCode?: string;
 }
 
 export interface SchedulePickupResponse {
@@ -274,6 +276,7 @@ export interface CreateAddressPayload {
   country: string;
   coordinates?: [number, number];
   is_default?: boolean;
+  address_type?: string;
 }
 
 export interface UpdateAddressPayload {
@@ -284,4 +287,5 @@ export interface UpdateAddressPayload {
   country?: string;
   coordinates?: [number, number];
   is_default?: boolean;
+  address_type?: string;
 }

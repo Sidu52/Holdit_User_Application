@@ -2,7 +2,9 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
+import { useSelector } from "react-redux";
 import { userApi } from "@/api/user.api";
+import { RootState } from "@/store";
 import { ApiError, UpdateProfilePayload, User, CompleteProfilePayload, CompleteProfileResponse, UserAddress, CreateAddressPayload, UpdateAddressPayload } from "@/features/auth/authTypes";
 
 // ============================================
@@ -21,9 +23,12 @@ export const userKeys = {
 // 1. GET PROFILE
 // ============================================
 export const useProfile = () => {
+  const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
+
   return useQuery<User, AxiosError<ApiError>>({
     queryKey: userKeys.profile(),
     queryFn: () => userApi.getProfile(),
+    enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: (failureCount, error) => {
       // Don't retry on 401 (handled by interceptor)

@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect, useState } from "react";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
@@ -25,9 +25,13 @@ import { useAuth } from "@/hooks/useAuth";
 
 SplashScreen.preventAutoHideAsync();
 
+import StatusPopup from "@/components/ui/StatusPopup";
+
 function RootInner() {
   const { isAuthenticated, loading: isLoading } = useAuth();
   const [appReady, setAppReady] = useState(false);
+  const segments = useSegments();
+  const router = useRouter();
 
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
@@ -42,6 +46,24 @@ function RootInner() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, isLoading]);
+
+  // Handle redirection based on auth state
+  useEffect(() => {
+    // Wait for auth initialization and fonts
+    if (isLoading || !fontsLoaded || !appReady) return;
+
+    const inAuthGroup = segments[0] === "(auth)";
+
+    console.log("[NAV] Auth:", isAuthenticated, "InAuthGroup:", inAuthGroup, "Segments:", segments);
+
+    if (!isAuthenticated && !inAuthGroup) {
+      // Redirect to login if not authenticated and not already in auth group
+      router.replace("/(auth)/login");
+    } else if (isAuthenticated && inAuthGroup) {
+      // Redirect to home if authenticated but still in auth group
+      router.replace("/(tabs)");
+    }
+  }, [isAuthenticated, isLoading, fontsLoaded, appReady, segments, router]);
 
   // Handle the completion of the custom animation
   const onAnimationFinish = () => {
@@ -62,14 +84,16 @@ function RootInner() {
       <Stack screenOptions={{ headerShown: false }}>
         {/* If not authenticated, the first thing they see is Auth */}
         {!isAuthenticated ? (
+          <Stack.Screen name="(auth)" />
+        ) : (
           <>
-            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(tabs)" />
             <Stack.Screen name="(screens)" />
           </>
-        ) : (
-          <Stack.Screen name="(tabs)" />
         )}
       </Stack>
+
+      <StatusPopup />
       <Toast />
     </GestureHandlerRootView>
   );

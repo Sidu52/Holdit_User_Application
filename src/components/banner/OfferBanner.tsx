@@ -14,8 +14,8 @@ type OfferBannerProps = {
   title: string;
   description: string;
   couponCode?: string;
-  buttonText: string;
-  onPress: () => void;
+  buttonText?: string;
+  onPress?: () => void;
 };
 
 export const OfferBanner: React.FC<OfferBannerProps> = ({
@@ -42,9 +42,11 @@ export const OfferBanner: React.FC<OfferBannerProps> = ({
           {couponCode && <Text style={styles.coupon}>{couponCode}</Text>}
         </Text>
 
-        <TouchableOpacity style={styles.button} onPress={onPress}>
-          <Text style={styles.buttonText}>{buttonText}</Text>
-        </TouchableOpacity>
+        {buttonText && onPress && (
+          <TouchableOpacity style={styles.button} onPress={onPress}>
+            <Text style={styles.buttonText}>{buttonText}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Icon Placeholder */}
@@ -63,6 +65,7 @@ const styles = StyleSheet.create({
     padding: 20,
     overflow: "hidden",
     minHeight: 180,
+    marginBottom: 16,
   },
 
   content: {

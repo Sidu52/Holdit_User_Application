@@ -80,6 +80,7 @@ export const THEME = {
   ERROR_LIGHT: "rgba(239, 68, 68, 0.1)",
   WARNING: "#f59e0b",
   WARNING_LIGHT: "rgba(245, 158, 11, 0.1)",
+  WARNING_DARK: "#f59e0b",
   INFO: "#3b82f6",
   INFO_LIGHT: "rgba(59, 130, 246, 0.1)",
 

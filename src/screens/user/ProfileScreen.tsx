@@ -7,12 +7,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { THEME } from "@/theme/theme";;
+import { THEME } from "@/theme/theme";
 import { useRouter } from "expo-router";
+import { useDispatch } from "react-redux";
 import { useProfile } from "@/features/user/user.queries";
+import { clearAuth } from "@/features/auth/authSlice";
+import { tokenService } from "@/utils/tokenManager";
 import { getInitials } from "@/utils/helper";
+import { useStatusPopup } from "@/hooks/useStatusPopup";
 
 /* ---------------- HELPERS ---------------- */
 
@@ -77,7 +82,35 @@ const Section = ({
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const dispatch = useDispatch();
   const { data: user, isLoading, isError } = useProfile();
+  const { showPopup } = useStatusPopup();
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // 1. Clear Redux
+              dispatch(clearAuth());
+              // 2. Clear SecureStore
+              await tokenService.clear();
+              // 3. Navigate back to auth
+              router.replace("/(auth)/login");
+            } catch (err) {
+              console.error("Logout error:", err);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   if (isLoading) {
     return (
@@ -192,8 +225,35 @@ export default function ProfileScreen() {
           />
         </Section>
 
+        {/* ---------- DEMO SECTION ---------- */}
+        <Section title="DEMO - POPUPS">
+          <MenuItem
+            icon="time"
+            label="Coming Soon Modal"
+            onPress={() => showPopup({
+              type: "coming_soon",
+              title: "Luggage Valet",
+              message: "We're almost ready to launch our doorstep valet service. Stay tuned!",
+              primaryActionLabel: "Notify Me",
+              canClose: true
+            })}
+          />
+          <MenuItem
+            icon="cloud-download"
+            label="Force Update Modal"
+            onPress={() => showPopup({
+              type: "update",
+              title: "App Update Required",
+              message: "To continue using Holdit, please update to the latest version v2.5.0",
+              primaryActionLabel: "Update Now",
+              canClose: false
+            })}
+            isLast
+          />
+        </Section>
+
         {/* ---------- LOGOUT ---------- */}
-        <TouchableOpacity style={styles.logoutBtn}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color={THEME.ERROR} />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
@@ -246,9 +306,9 @@ const styles = StyleSheet.create({
     borderColor: "#EBAE2B", // Yellow ring from the image
   },
   avatarText: {
-    color: "#1A2B48",
+    color: THEME.TEXT_DARK,
     fontSize: 26,
-    fontWeight: "bold",
+    fontWeight: "900",
   },
   verifiedBadge: {
     position: "absolute",
@@ -259,14 +319,14 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: "900",
     color: "#FFF",
   },
   subtitle: {
     marginTop: 6,
     fontSize: 11,
-    fontWeight: "600",
-    color: "#A0ABBB",
+    fontWeight: "800",
+    color: "rgba(255,255,255,0.7)",
     letterSpacing: 0.5,
   },
   contentPadding: {
@@ -278,8 +338,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#94A3B8",
+    fontWeight: "800",
+    color: THEME.TEXT_DARK_SECONDARY,
     marginBottom: 8,
     marginLeft: 4,
   },
@@ -311,8 +371,8 @@ const styles = StyleSheet.create({
   menuLabel: {
     flex: 1,
     fontSize: 15,
-    fontWeight: "600",
-    color: "#334155",
+    fontWeight: "800",
+    color: THEME.TEXT_DARK,
   },
   valueBadge: {
     backgroundColor: "#F1F5F9",
@@ -323,8 +383,8 @@ const styles = StyleSheet.create({
   },
   menuValue: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#64748B",
+    fontWeight: "800",
+    color: THEME.TEXT_DARK_SECONDARY,
   },
   logoutBtn: {
     marginTop: 10,
@@ -339,7 +399,7 @@ const styles = StyleSheet.create({
     borderColor: "#FEE2E2",
   },
   logoutText: {
-    fontWeight: "700",
+    fontWeight: "800",
     color: THEME.ERROR,
     fontSize: 15,
   },

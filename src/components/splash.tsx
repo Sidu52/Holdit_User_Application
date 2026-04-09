@@ -1,5 +1,4 @@
-import { THEME } from "@/theme/theme";;
-import { useUser } from "@/features/user/user.queries";
+import { THEME } from "@/theme/theme";
 import React, { useEffect, useRef } from "react";
 import {
   View,

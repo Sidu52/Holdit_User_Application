@@ -13,22 +13,31 @@ export const useAuth = () => {
   // Initial check configures Redux state if tokens already exist in secure store
   useEffect(() => {
     const initializeAuth = async () => {
+      console.log("[AUTH] Initializing Auth State...");
       try {
         const accessToken = await tokenService.getAccessToken();
         const refreshToken = await tokenService.getRefreshToken();
         
-        if (accessToken && refreshToken) {
+        console.log("[AUTH] SecureStore Result:", accessToken ? "Access FOUND" : "Access MISSING");
+
+        if (accessToken && refreshToken && 
+            accessToken !== "null" && accessToken !== "undefined" && 
+            refreshToken !== "null" && refreshToken !== "undefined") {
+          console.log("[AUTH] Valid tokens found, dispatching to Redux.");
           dispatch(setTokens({ access: accessToken, refresh: refreshToken }));
         } else {
+          console.log("[AUTH] No valid tokens found in SecureStore.");
           dispatch(clearAuth());
         }
       } catch (error) {
-        console.error('Failed to restore auth tokens', error);
+        console.error('[AUTH] Failed to restore tokens:', error);
         dispatch(clearAuth());
       } finally {
         setLoading(false);
+        console.log("[AUTH] Initialization complete.");
       }
     };
+
 
     initializeAuth();
   }, [dispatch]);

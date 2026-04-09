@@ -9,19 +9,25 @@ export const tokenService = {
   // GET TOKENS
   getAccessToken: async (): Promise<string | null> => {
     try {
-      return await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+      const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+      if (token === "null" || token === "undefined") return null;
+      return token;
     } catch {
       return null;
     }
   },
 
+
   getRefreshToken: async (): Promise<string | null> => {
     try {
-      return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      const token = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      if (token === "null" || token === "undefined") return null;
+      return token;
     } catch {
       return null;
     }
   },
+
 
   // SET TOKENS
   setTokens: async (

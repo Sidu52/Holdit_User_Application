@@ -17,7 +17,6 @@ import {
   MapPin,
   ShieldCheck,
 } from "lucide-react-native";
-// import { useCreateBooking } from "@/features/booking/booking.queries";
 import { useNavigation } from "@react-navigation/native";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { showError } from "@/utils/toast";
