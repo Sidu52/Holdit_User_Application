@@ -1,7 +1,7 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import ShimmerPlaceholder from "react-native-shimmer-placeholder";
-import LinearGradient from "react-native-linear-gradient";
+import { LinearGradient } from "expo-linear-gradient";
 
 const SkeletonLoader = () => {
   return (

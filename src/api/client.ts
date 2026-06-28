@@ -39,7 +39,7 @@ const handleAuthFailure = async () => {
 };
 
 // AXIOS INSTANCE
-const API_URL = (process.env.EXPO_PUBLIC_API_URL || "https://holdit-backend-api.onrender.com/api/v1").replace(/\/+$/, "");
+const API_URL = (process.env.EXPO_PUBLIC_API_URL).replace(/\/+$/, "");
 
 export const api = axios.create({
   baseURL: API_URL,

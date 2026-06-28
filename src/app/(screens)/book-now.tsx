@@ -29,6 +29,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/features/booking/bookingQueries";
 import { StatusBar } from "expo-status-bar";
 
+import { UserAddress } from "@/features/auth/authTypes";
+
 const { width } = Dimensions.get("window");
 
 const LUGGAGE_TYPES = [
@@ -106,6 +108,7 @@ export default function BookNowScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { data: user, isLoading: isUserLoading } = useProfile();
+  const { data: addresses } = useAddresses();
 
   const createBooking = useCreateBooking();
 
@@ -121,7 +124,8 @@ export default function BookNowScreen() {
   const [notes, setNotes] = useState("");
   const [couponCode, setCouponCode] = useState("");
   const [showAddressModal, setShowAddressModal] = useState(false);
-  const [addressMode, setAddressMode] = useState<"profile" | "custom">("profile");
+  const [addressMode, setAddressMode] = useState<"profile" | "saved" | "custom">("profile");
+  const [selectedSavedAddress, setSelectedSavedAddress] = useState<UserAddress | null>(null);
   const [customAddress, setCustomAddress] = useState("");
   const [isBagSelected, setIsBagSelected] = useState(true);
 
@@ -173,7 +177,43 @@ export default function BookNowScreen() {
   const subtotal = LUGGAGE_TYPES.reduce((acc, item) => acc + (luggage[item.id] * item.price), 0);
   const totalSavings = LUGGAGE_TYPES.reduce((acc, item) => acc + (luggage[item.id] * (item.oldPrice - item.price)), 0);
   const totalToPay = subtotal + tipAmount;
-  const displayAddress = addressMode === "custom" ? customAddress : (user?.location?.address || "Set your address");
+  // Resolve default address from saved addresses list
+  const defaultAddress = useMemo(() => {
+    return user?.addresses?.find((addr) => addr.is_default) || addresses?.find((addr) => addr.is_default);
+  }, [user?.addresses, addresses]);
+
+  const defaultAddressString = useMemo(() => {
+    if (!defaultAddress) return null;
+    return [
+      defaultAddress.street,
+      defaultAddress.city,
+      defaultAddress.state,
+      defaultAddress.postal_code,
+      defaultAddress.country,
+    ].filter(Boolean).join(", ");
+  }, [defaultAddress]);
+
+  // Automatically fall back to default address if profile home has no set address
+  useEffect(() => {
+    if (addressMode === "profile" && !user?.location?.address && defaultAddress && !selectedSavedAddress) {
+      setAddressMode("saved");
+      setSelectedSavedAddress(defaultAddress);
+    }
+  }, [addressMode, user?.location?.address, defaultAddress, selectedSavedAddress]);
+
+  const displayAddress = useMemo(() => {
+    if (addressMode === "custom") return customAddress;
+    if (addressMode === "saved" && selectedSavedAddress) {
+      return [
+        selectedSavedAddress.street,
+        selectedSavedAddress.city,
+        selectedSavedAddress.state,
+        selectedSavedAddress.postal_code,
+        selectedSavedAddress.country,
+      ].filter(Boolean).join(", ");
+    }
+    return user?.location?.address || defaultAddressString || "Set your address";
+  }, [addressMode, customAddress, selectedSavedAddress, user?.location?.address, defaultAddressString]);
 
   // HANDLERS
   const handleLuggageChange = (id: string, delta: number) => {
@@ -194,10 +234,29 @@ export default function BookNowScreen() {
       return;
     }
 
+    let bookingLat = 0;
+    let bookingLng = 0;
+
+    if (addressMode === "custom") {
+      bookingLat = user?.location?.coordinates?.[1] || 0;
+      bookingLng = user?.location?.coordinates?.[0] || 0;
+    } else if (addressMode === "saved" && selectedSavedAddress) {
+      bookingLng = selectedSavedAddress.coordinates?.[0] || 0;
+      bookingLat = selectedSavedAddress.coordinates?.[1] || 0;
+    } else {
+      if (user?.location?.address && user?.location?.coordinates) {
+        bookingLng = user.location.coordinates[0] || 0;
+        bookingLat = user.location.coordinates[1] || 0;
+      } else if (defaultAddress) {
+        bookingLng = defaultAddress.coordinates?.[0] || 0;
+        bookingLat = defaultAddress.coordinates?.[1] || 0;
+      }
+    }
+
     const payload: any = {
       pickupLocation: {
-        lat: user?.location?.coordinates[1] || 0,
-        lng: user?.location?.coordinates[0] || 0,
+        lat: bookingLat,
+        lng: bookingLng,
         address: displayAddress,
       },
       luggage,
@@ -507,13 +566,58 @@ export default function BookNowScreen() {
                 <Ionicons name="close" size={24} />
               </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.modalAddressItem}
-              onPress={() => { setAddressMode("profile"); setShowAddressModal(false); }}
-            >
-              <Ionicons name="home-outline" size={20} />
-              <Text style={styles.modalAddressText}>{user?.location?.address || "Profile Home"}</Text>
-            </TouchableOpacity>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+              {user?.location?.address ? (
+                <TouchableOpacity
+                  style={[
+                    styles.modalAddressItem,
+                    addressMode === "profile" && !selectedSavedAddress && { borderColor: THEME.PRIMARY, borderWidth: 1 }
+                  ]}
+                  onPress={() => { setAddressMode("profile"); setSelectedSavedAddress(null); setShowAddressModal(false); }}
+                >
+                  <Ionicons name="location-outline" size={20} color={THEME.PRIMARY} />
+                  <Text style={styles.modalAddressText}>{user.location.address}</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {addresses && addresses.map((addr) => {
+                const formatted = [addr.street, addr.city, addr.state, addr.postal_code, addr.country].filter(Boolean).join(", ");
+                const isSelected = addressMode === "saved" && selectedSavedAddress?._id === addr._id;
+                return (
+                  <TouchableOpacity
+                    key={addr._id}
+                    style={[
+                      styles.modalAddressItem,
+                      isSelected && { borderColor: THEME.PRIMARY, borderWidth: 1 }
+                    ]}
+                    onPress={() => {
+                      setAddressMode("saved");
+                      setSelectedSavedAddress(addr);
+                      setShowAddressModal(false);
+                    }}
+                  >
+                    <Ionicons name={addr.address_type === "Home" ? "home-outline" : "briefcase-outline"} size={20} color={THEME.PRIMARY} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: "700", fontSize: 13, color: THEME.TEXT_DARK }}>
+                        {addr.address_type || "Saved Address"} {addr.is_default && "(Default)"}
+                      </Text>
+                      <Text style={styles.modalAddressText}>{formatted}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+
+              <TouchableOpacity
+                style={[styles.modalAddressItem, { backgroundColor: THEME.TRANSPARENT_PRIMARY || "rgba(79, 70, 229, 0.1)" }]}
+                onPress={() => {
+                  setShowAddressModal(false);
+                  router.push("/addresses");
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={20} color={THEME.PRIMARY} />
+                <Text style={[styles.modalAddressText, { color: THEME.PRIMARY, fontWeight: "700" }]}>Manage / Add New Address</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>

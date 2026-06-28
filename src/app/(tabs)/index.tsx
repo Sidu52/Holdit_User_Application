@@ -74,10 +74,20 @@ export default function HomeScreen() {
     // Display user's own address or fallback
     const displayAddress = useMemo(() => {
         if (user?.location?.address) return user.location.address;
+        const defaultAddress = user?.addresses?.find((addr: any) => addr.is_default);
+        if (defaultAddress) {
+            return [
+                defaultAddress.street,
+                defaultAddress.city,
+                defaultAddress.state,
+                defaultAddress.postal_code,
+                defaultAddress.country
+            ].filter(Boolean).join(", ");
+        }
         if (isStoreLoading) return "Locating...";
         if (nearestStore?.nearest.store_address) return nearestStore.nearest.store_address;
         return "Set your address";
-    }, [user?.location?.address, isStoreLoading, nearestStore?.nearest.store_address]);
+    }, [user?.location?.address, user?.addresses, isStoreLoading, nearestStore?.nearest.store_address]);
 
     // Activity Icon Mapping
     const getActivityMeta = useCallback(

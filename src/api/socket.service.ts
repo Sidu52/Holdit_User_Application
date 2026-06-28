@@ -2,8 +2,18 @@ import { io } from "socket.io-client/dist/socket.io.js";
 import type { Socket } from "socket.io-client";
 import { Platform } from "react-native";
 
-// Derived from api.client.ts BASE_URL
-const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || "https://holdit-backend-api.onrender.com";
+// Derived from EXPO_PUBLIC_API_URL or EXPO_PUBLIC_SOCKET_URL dynamically
+const getSocketUrl = () => {
+  if (process.env.EXPO_PUBLIC_SOCKET_URL) {
+    return process.env.EXPO_PUBLIC_SOCKET_URL;
+  }
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, "");
+  }
+  return "http://localhost:5000";
+};
+
+const SOCKET_URL = getSocketUrl();
 
 class SocketService {
   private socket: Socket | null = null;
