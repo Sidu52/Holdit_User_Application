@@ -1004,6 +1004,67 @@ export default function BookingDetailScreen() {
           </View>
         </Animated.View>
 
+        {/* ── OTP SHARE CARD ─────────────────────────────────────────── */}
+        {/* Pickup OTP: show when driver is assigned/arrived and OTP exists */}
+        {booking.pickup?.assignment?.otp &&
+          ["driver_assigned", "driver_arrived"].includes(booking.status) && (
+          <Animated.View entering={FadeInDown.delay(450).springify()}>
+            <View style={[styles.sectionCard, styles.otpCard]}>
+              <View style={styles.otpHeader}>
+                <View style={[styles.otpIconBg, { backgroundColor: "#dbeafe" }]}>
+                  <Ionicons name="key-outline" size={20} color="#2563eb" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.otpTitle}>Pickup OTP</Text>
+                  <Text style={styles.otpSubtitle}>
+                    Share this code with the pickup driver
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.otpCodeContainer}>
+                {booking.pickup.assignment.otp.split("").map((digit: string, i: number) => (
+                  <View key={`pickup-otp-${i}`} style={styles.otpDigitBox}>
+                    <Text style={styles.otpDigitText}>{digit}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.otpWarning}>
+                Do not share this code until the driver arrives at your location
+              </Text>
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Delivery OTP: show when return driver is out for delivery and OTP exists */}
+        {booking.delivery?.assignment?.otp &&
+          ["out_for_return", "arrived_for_delivery"].includes(booking.status) && (
+          <Animated.View entering={FadeInDown.delay(450).springify()}>
+            <View style={[styles.sectionCard, styles.otpCard]}>
+              <View style={styles.otpHeader}>
+                <View style={[styles.otpIconBg, { backgroundColor: "#dcfce7" }]}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color="#16a34a" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.otpTitle}>Delivery OTP</Text>
+                  <Text style={styles.otpSubtitle}>
+                    Share this code with the delivery driver to receive your items
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.otpCodeContainer}>
+                {booking.delivery.assignment.otp.split("").map((digit: string, i: number) => (
+                  <View key={`delivery-otp-${i}`} style={styles.otpDigitBox}>
+                    <Text style={styles.otpDigitText}>{digit}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.otpWarning}>
+                Only share this code after verifying your items with the driver
+              </Text>
+            </View>
+          </Animated.View>
+        )}
+
         {/* ── STORE INFO ───────────────────────────────────────────── */}
         {store && (
           <Animated.View entering={FadeInDown.delay(500).springify()}>
@@ -2117,5 +2178,62 @@ const styles = StyleSheet.create({
     height: 90,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // OTP Card
+  otpCard: {
+    borderLeftWidth: 3,
+    borderLeftColor: THEME.PRIMARY,
+  },
+  otpHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+  },
+  otpIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  otpTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: THEME.TEXT_DARK,
+  },
+  otpSubtitle: {
+    fontSize: 12,
+    color: THEME.TEXT_MUTED,
+    marginTop: 2,
+  },
+  otpCodeContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 16,
+  },
+  otpDigitBox: {
+    width: 52,
+    height: 62,
+    borderRadius: 14,
+    backgroundColor: `${THEME.PRIMARY}08`,
+    borderWidth: 2,
+    borderColor: `${THEME.PRIMARY}25`,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  otpDigitText: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: THEME.PRIMARY,
+    fontVariant: ["tabular-nums"],
+  },
+  otpWarning: {
+    fontSize: 11,
+    color: THEME.TEXT_MUTED,
+    textAlign: "center",
+    fontStyle: "italic",
   },
 });

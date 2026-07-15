@@ -162,6 +162,8 @@ export interface Booking {
     scheduledAt: string;
     assignment?: {
       driverId: string;
+      otp?: string;
+      returnOtp?: string;
       assignedAt: string;
       startedAt?: string;
       completedAt?: string;
@@ -176,6 +178,18 @@ export interface Booking {
     location: {
       type: string;
       coordinates: [number, number];
+    };
+  };
+  delivery?: {
+    requestedAt?: string;
+    scheduledAt?: string;
+    assignment?: {
+      driverId: string;
+      otp?: string;
+      returnOtp?: string;
+      assignedAt: string;
+      startedAt?: string;
+      completedAt?: string;
     };
   };
   driver?: {
